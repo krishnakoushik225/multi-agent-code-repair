@@ -11,3 +11,16 @@ dist/
 build/
 .venv/
 venv/
+# macOS
+.DS_Store
+
+# runtime logs/artifacts
+*.log
+
+# coverage artifacts
+.coverage
+htmlcov/
+coverage.xml
+
+# optional: broader checkpoint safety
+checkpoints/claude.md
