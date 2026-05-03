@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build backends for offline `pip install -e . --no-build-isolation` (e.g. flit / setuptools).
+RUN pip install --no-cache-dir pytest ruff mypy pytest-cov \
+    "flit_core>=3.11,<4" setuptools wheel build
+
+WORKDIR /workspace
+
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
