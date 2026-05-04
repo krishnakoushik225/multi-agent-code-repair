@@ -50,6 +50,15 @@ One configuration surface for multiple providers. Swap models with environment v
 **Where we deliberately avoid LLMs**  
 Issue ingestion, repository reads, AST symbol extraction, diff application, sandbox execution, git push, and PR creation stay deterministic to reduce cost, latency, and failure modes.
 
+**Why `as_model()` instead of direct dict access?**  
+LangGraph checkpoints persist state through SQLite serde: Pydantic objects round-trip as plain `dict` values. `as_model()` rehydrates those dicts back into typed models so node code and routing logic keep field access, enums, and validation consistent without sprinkling ad hoc `dict` parsing at every edge.
+
+**Why a two-pass patch generation (sanity check + repair)?**  
+`patch_sanity.py` catches deterministic unified-diff failure modes (for example corrupt hunks or forbidden `tests/` paths) before any clone or Docker run. When sanity fails, a second LLM call with a repair prompt regenerates the diff, which cuts expensive sandbox invocations and shortens the feedback loop for formatting-only mistakes.
+
+**Why `base_commit_sha` pinning?**  
+The base SHA is fixed at ingestion so research excerpts, the generated patch, and `git apply` / validation all target the same tree. On fast-moving default branches, otherwise research could read one revision while validation applies against another, producing spurious context mismatches and flaky applies.
+
 ## Project layout
 
 See the repository tree under `graph/`, `nodes/`, `tools/`, `prompts/`, `docker/`, `evaluation/`, and `tests/` for the modules referenced in the design brief.

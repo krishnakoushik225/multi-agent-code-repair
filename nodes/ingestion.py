@@ -6,12 +6,17 @@ import re
 from github import Github
 
 from graph.state import GraphState, IssueContext
+from logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def ingestion_node(state: GraphState) -> dict:
     """Deterministic node. No LLM. Fetches GitHub issue metadata."""
+    logger.info("node starting")
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
+        logger.error("GITHUB_TOKEN is not set")
         return {
             "error_message": "GITHUB_TOKEN is not set",
             "final_status": "failed",
@@ -22,6 +27,7 @@ def ingestion_node(state: GraphState) -> dict:
 
     match = re.match(r"https://github\.com/([^/]+)/([^/]+)/issues/(\d+)", url)
     if not match:
+        logger.error("Invalid GitHub issue URL: %s", url)
         return {
             "error_message": f"Invalid GitHub issue URL: {url}",
             "final_status": "failed",
@@ -39,6 +45,7 @@ def ingestion_node(state: GraphState) -> dict:
             branch = repo.get_branch(repo.default_branch)
             base_sha = branch.commit.sha
     except Exception as exc:  # noqa: BLE001 — surface GitHub errors to state
+        logger.error("GitHub API error: %s", exc)
         return {
             "error_message": f"GitHub API error: {exc}",
             "final_status": "failed",
@@ -56,6 +63,16 @@ def ingestion_node(state: GraphState) -> dict:
         base_commit_sha=base_sha,
     )
 
+    logger.info(
+        "node complete",
+        extra={
+            "output_payload": {
+                "issue_number": context.issue_number,
+                "repo": f"{owner}/{repo_name}",
+                "base_commit_sha": context.base_commit_sha,
+            },
+        },
+    )
     return {
         "issue_context": context,
         "retry_count": 0,

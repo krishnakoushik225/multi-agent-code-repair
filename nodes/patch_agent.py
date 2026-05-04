@@ -6,16 +6,21 @@ import os
 from litellm import completion
 
 from graph.state import GraphState, IssueContext, PatchOutput, PlanningOutput, ResearchOutput, ValidationOutput, as_model
+from logging_config import get_logger
 from prompts.patch_prompt import build_patch_prompt, build_patch_repair_prompt
 from tools.patch_sanity import sanity_check_unified_diff
+
+logger = get_logger(__name__)
 
 
 def patch_node(state: GraphState) -> dict:
     """LLM agent. Generates unified diff. On retry, receives prior stderr in context."""
+    logger.info("node starting")
     raw_ctx = state["issue_context"]
     raw_research = state["research_output"]
     raw_planning = state["planning_output"]
     if raw_ctx is None or raw_research is None or raw_planning is None:
+        logger.error("Missing upstream context for patch")
         return {"error_message": "Missing upstream context for patch", "final_status": "failed"}
 
     ctx = as_model(IssueContext, raw_ctx)
@@ -47,6 +52,7 @@ def patch_node(state: GraphState) -> dict:
     try:
         llm_output = json.loads(content)
     except json.JSONDecodeError:
+        logger.error("LLM returned invalid JSON: %s", content[:200])
         return {"error_message": f"LLM returned invalid JSON: {content[:200]}", "final_status": "failed"}
 
     output = PatchOutput(
@@ -82,6 +88,17 @@ def patch_node(state: GraphState) -> dict:
                 output = candidate
 
     new_retry = retry_count + 1 if prior_error is not None else retry_count
+    logger.info(
+        "node complete",
+        extra={
+            "output_payload": {
+                "files_modified_count": len(output.files_modified),
+                "unified_diff_chars": len(output.unified_diff or ""),
+                "has_tests_written": output.tests_written is not None,
+                "retry_count_after": new_retry,
+            },
+        },
+    )
     return {
         "patch_output": output,
         "retry_count": new_retry,

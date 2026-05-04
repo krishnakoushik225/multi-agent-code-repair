@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from graph.graph_builder import build_graph
+from logging_config import set_correlation_id
 
 load_dotenv()
 
@@ -62,6 +63,7 @@ def run(
         thread_id = f"{thread_id}_{override[:16]}"
     config = {"configurable": {"thread_id": thread_id}}
 
+    set_correlation_id(issue_url)
     for event in graph.stream(initial_state, config=config):
         for node_name, _node_output in event.items():
             console.print(f"[green]✓[/green] Completed node: [bold]{node_name}[/bold]")

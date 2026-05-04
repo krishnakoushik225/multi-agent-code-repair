@@ -1,17 +1,43 @@
 from __future__ import annotations
 
 import base64
+import functools
 import os
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Callable, Iterable
 from urllib.parse import quote
 
 from github import Github
 from github.GithubException import GithubException
 from github.Repository import Repository
+
+from logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+def retry_on_rate_limit(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Retry GitHub API calls on HTTP 403/429 (rate limit) with exponential backoff."""
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        for attempt in range(4):
+            try:
+                return func(*args, **kwargs)
+            except GithubException as e:
+                status = getattr(e, "status", None)
+                if status not in (403, 429):
+                    raise
+                if attempt >= 3:
+                    raise
+                time.sleep(min(2**attempt, 60))
+        raise RuntimeError("unreachable")  # pragma: no cover
+
+    return wrapper
 
 
 def _client() -> Github:
@@ -28,6 +54,7 @@ def _commit_for_ref(repo: Repository, git_ref: str | None) -> str:
     return repo.get_commit(repo.get_branch(repo.default_branch).commit.sha).sha
 
 
+@retry_on_rate_limit
 def get_repo_tree(
     repo_owner: str,
     repo_name: str,
@@ -53,6 +80,11 @@ def get_repo_tree(
     return sorted(paths)
 
 
+@retry_on_rate_limit
+def _repo_get_contents(repo: Repository, file_path: str, ref: str):
+    return repo.get_contents(file_path, ref=ref)
+
+
 def get_file_content(
     repo_owner: str,
     repo_name: str,
@@ -66,7 +98,7 @@ def get_file_content(
     ref = git_ref if git_ref else repo.default_branch
 
     try:
-        content_file = repo.get_contents(file_path, ref=ref)
+        content_file = _repo_get_contents(repo, file_path, ref)
     except GithubException:
         return None
     except Exception:
@@ -94,6 +126,19 @@ def _sanitize_code_search_query(query: str, max_len: int = 120) -> str:
     return cleaned[:max_len].strip()
 
 
+@retry_on_rate_limit
+def _collect_code_search_paths(g: Github, q: str, limit: int) -> list[str]:
+    paths: list[str] = []
+    results = g.search_code(q)
+    for i, res in enumerate(results):
+        if i >= limit:
+            break
+        path = getattr(res, "path", None)
+        if path:
+            paths.append(path)
+    return paths
+
+
 def search_code_in_repo(repo_owner: str, repo_name: str, query: str, limit: int = 20) -> list[str]:
     """
     GitHub code search scoped to a repository; returns matching file paths.
@@ -109,28 +154,18 @@ def search_code_in_repo(repo_owner: str, repo_name: str, query: str, limit: int 
         return []
 
     q = f"{cleaned} repo:{repo_owner}/{repo_name}"
-    paths: list[str] = []
 
     try:
-        results = g.search_code(q)
-
-        # PyGithub search is lazy; errors often occur during iteration, not creation.
-        for i, res in enumerate(results):
-            if i >= limit:
-                break
-            path = getattr(res, "path", None)
-            if path:
-                paths.append(path)
-
+        paths = _collect_code_search_paths(g, q, limit)
     except GithubException as e:
-        print(
-            "GitHub code search failed:",
-            f"status={getattr(e, 'status', None)}",
-            f"data={getattr(e, 'data', None)}",
+        logger.warning(
+            "GitHub code search failed: status=%s data=%s",
+            getattr(e, "status", None),
+            getattr(e, "data", None),
         )
         return []
     except Exception as e:
-        print(f"GitHub code search failed: {e}")
+        logger.warning("GitHub code search failed: %s", e)
         return []
 
     return list(dict.fromkeys(paths))

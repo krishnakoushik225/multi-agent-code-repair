@@ -6,15 +6,20 @@ import os
 from litellm import completion
 
 from graph.state import GraphState, IssueContext, ResearchOutput, as_model
+from logging_config import get_logger
 from prompts.research_prompt import build_research_prompt
 from tools.code_search import find_related_symbols
 from tools.github_tools import get_file_content, get_repo_tree, search_code_in_repo
 
+logger = get_logger(__name__)
+
 
 def research_node(state: GraphState) -> dict:
     """LLM agent. Uses GitHub Search API and tree-sitter to find relevant code."""
+    logger.info("node starting")
     raw_ctx = state["issue_context"]
     if raw_ctx is None:
+        logger.error("Missing issue_context")
         return {"error_message": "Missing issue_context", "final_status": "failed"}
 
     ctx = as_model(IssueContext, raw_ctx)
@@ -33,6 +38,7 @@ def research_node(state: GraphState) -> dict:
     try:
         llm_output = json.loads(content)
     except json.JSONDecodeError:
+        logger.error("LLM returned invalid JSON: %s", content[:200])
         return {"error_message": f"LLM returned invalid JSON: {content[:200]}", "final_status": "failed"}
 
     candidate_files = list(dict.fromkeys(llm_output.get("candidate_files", [])))
@@ -58,4 +64,14 @@ def research_node(state: GraphState) -> dict:
         confidence_score=float(llm_output.get("confidence_score", 0.5)),
     )
 
+    logger.info(
+        "node complete",
+        extra={
+            "output_payload": {
+                "relevant_files_count": len(output.relevant_files),
+                "related_symbols_count": len(output.related_symbols),
+                "confidence_score": output.confidence_score,
+            },
+        },
+    )
     return {"research_output": output}

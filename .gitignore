@@ -1,5 +1,7 @@
 .env
 checkpoints/*.db
+checkpoints/*.db-shm
+checkpoints/*.db-wal
 checkpoints/*.sqlite
 __pycache__/
 *.py[cod]
@@ -16,11 +18,9 @@ venv/
 
 # runtime logs/artifacts
 *.log
+dry_run_full_output.log
 
 # coverage artifacts
 .coverage
 htmlcov/
 coverage.xml
-
-# optional: broader checkpoint safety
-checkpoints/claude.md

@@ -6,7 +6,10 @@ import os
 from litellm import completion
 
 from graph.state import GraphState, IssueContext, PlanningOutput, ResearchOutput, RiskLevel, as_model
+from logging_config import get_logger
 from prompts.planning_prompt import build_planning_prompt
+
+logger = get_logger(__name__)
 
 
 def _safe_int(value: object, default: int = 0) -> int:
@@ -18,9 +21,11 @@ def _safe_int(value: object, default: int = 0) -> int:
 
 def planning_node(state: GraphState) -> dict:
     """LLM agent. Decides fix strategy, risk level, and whether new tests are needed."""
+    logger.info("node starting")
     raw_ctx = state["issue_context"]
     raw_research = state["research_output"]
     if raw_ctx is None or raw_research is None:
+        logger.error("Missing issue_context or research_output")
         return {"error_message": "Missing issue_context or research_output", "final_status": "failed"}
 
     ctx = as_model(IssueContext, raw_ctx)
@@ -37,6 +42,7 @@ def planning_node(state: GraphState) -> dict:
     try:
         llm_output = json.loads(content)
     except json.JSONDecodeError:
+        logger.error("LLM returned invalid JSON: %s", content[:200])
         return {"error_message": f"LLM returned invalid JSON: {content[:200]}", "final_status": "failed"}
 
     raw_risk = str(llm_output.get("risk_level", "medium")).lower()
@@ -55,4 +61,15 @@ def planning_node(state: GraphState) -> dict:
         ambiguity_reason=llm_output.get("ambiguity_reason"),
     )
 
+    logger.info(
+        "node complete",
+        extra={
+            "output_payload": {
+                "risk_level": output.risk_level.value,
+                "ambiguous": output.ambiguous,
+                "candidate_files_count": len(output.candidate_files),
+                "requires_new_tests": output.requires_new_tests,
+            },
+        },
+    )
     return {"planning_output": output}
