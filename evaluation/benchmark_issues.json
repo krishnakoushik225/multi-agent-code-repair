@@ -5,10 +5,10 @@
     "base_commit_sha": "273fb90106726daa16e1033eca0d677de76345eb",
     "expected_files_modified": ["src/click/core.py"],
     "has_reproducible_test": true,
-    "human_edits_required": null,
+    "human_edits_required": false,
     "cost_usd": null,
-    "recorded_outcome": null,
-    "notes": "Run with: python main.py run --issue-url URL --base-sha SHA --dry-run"
+    "recorded_outcome": "human_review: git apply failed (src/click/core.py:265) after 3 patch retries; tests/lint/type never green",
+    "notes": "Recorded 2026-05-04 dry-run ~90s wall; stderr: patch does not apply. Fill cost_usd from LangSmith for this run."
   },
   {
     "issue_url": "https://github.com/pallets/click/issues/3277",
