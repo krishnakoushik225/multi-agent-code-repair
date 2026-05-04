@@ -1,3 +1,5 @@
+![CI](https://github.com/krishnakoushik225/multi-agent-code-repair/actions/workflows/ci.yml/badge.svg)
+
 # Multi-Agent Code Repair Orchestration
 
 LangGraph workflow that ingests a GitHub issue, researches the codebase with deterministic tooling plus LLM planning, generates a patch, validates it in a Docker sandbox (pytest, ruff, mypy), retries on structured failure signals, and opens a pull request.
