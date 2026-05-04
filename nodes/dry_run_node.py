@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import sys
 
-from graph.state import GraphState, IssueContext, PatchOutput, PlanningOutput, ValidationOutput, as_model
+from graph.state import (
+    GraphState,
+    IssueContext,
+    PatchOutput,
+    PlanningOutput,
+    ValidationOutput,
+    as_model,
+)
 from tools.github_tools import ensure_branch_name, slugify
 from tools.pr_template import build_pr_body, build_pr_title
 

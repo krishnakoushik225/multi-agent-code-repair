@@ -5,7 +5,14 @@ import os
 
 from litellm import completion
 
-from graph.state import GraphState, IssueContext, PlanningOutput, ResearchOutput, RiskLevel, as_model
+from graph.state import (
+    GraphState,
+    IssueContext,
+    PlanningOutput,
+    ResearchOutput,
+    RiskLevel,
+    as_model,
+)
 from logging_config import get_logger
 from prompts.planning_prompt import build_planning_prompt
 

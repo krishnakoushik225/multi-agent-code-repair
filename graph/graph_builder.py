@@ -9,6 +9,8 @@ from langgraph.graph import END, START, StateGraph
 
 from graph.edges import route_after_ingestion, route_after_planning, route_after_validation
 from graph.state import GraphState
+from nodes.dry_run_node import dry_run_node
+from nodes.failed_node import failed_node
 from nodes.human_review_node import human_review_node
 from nodes.ingestion import ingestion_node
 from nodes.patch_agent import patch_node
@@ -16,8 +18,6 @@ from nodes.planning_agent import planning_node
 from nodes.pr_node import pr_node
 from nodes.research_agent import research_node
 from nodes.validation_node import validation_node
-from nodes.failed_node import failed_node
-from nodes.dry_run_node import dry_run_node
 
 # Explicit allowlist: SAFE_MSGPACK_TYPES are still accepted first by the serde hook.
 _CHECKPOINT_MSGPACK_TYPES: tuple[tuple[str, str], ...] = (

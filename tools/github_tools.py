@@ -7,8 +7,9 @@ import re
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 from urllib.parse import quote
 
 from github import Github

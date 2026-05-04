@@ -5,7 +5,15 @@ import os
 
 from litellm import completion
 
-from graph.state import GraphState, IssueContext, PatchOutput, PlanningOutput, ResearchOutput, ValidationOutput, as_model
+from graph.state import (
+    GraphState,
+    IssueContext,
+    PatchOutput,
+    PlanningOutput,
+    ResearchOutput,
+    ValidationOutput,
+    as_model,
+)
 from logging_config import get_logger
 from prompts.patch_prompt import build_patch_prompt, build_patch_repair_prompt
 from tools.patch_sanity import sanity_check_unified_diff

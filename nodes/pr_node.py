@@ -4,7 +4,15 @@ import os
 
 from github import Github
 
-from graph.state import GraphState, IssueContext, PROutput, PatchOutput, PlanningOutput, ValidationOutput, as_model
+from graph.state import (
+    GraphState,
+    IssueContext,
+    PatchOutput,
+    PlanningOutput,
+    PROutput,
+    ValidationOutput,
+    as_model,
+)
 from logging_config import get_logger
 from tools.github_tools import ensure_branch_name, git_push_patch_branch, slugify
 from tools.pr_template import build_pr_body, build_pr_title

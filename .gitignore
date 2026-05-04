@@ -1,8 +1,6 @@
 .env
-checkpoints/*.db
-checkpoints/*.db-shm
-checkpoints/*.db-wal
-checkpoints/*.sqlite
+# Entire checkpoints dir is runtime-only (SQLite WAL/SHM, graph state)
+checkpoints/
 __pycache__/
 *.py[cod]
 .pytest_cache/

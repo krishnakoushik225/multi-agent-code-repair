@@ -12,6 +12,12 @@ from logging_config import set_correlation_id
 
 load_dotenv()
 
+# LangSmith tracing — activates automatically when LANGCHAIN_TRACING_V2=true is set in .env
+_tracing = os.environ.get("LANGCHAIN_TRACING_V2", "").lower()
+if _tracing == "true":
+    _project = os.environ.get("LANGCHAIN_PROJECT", "multi-agent-code-repair")
+    os.environ.setdefault("LANGCHAIN_PROJECT", _project)
+
 app = typer.Typer()
 console = Console()
 

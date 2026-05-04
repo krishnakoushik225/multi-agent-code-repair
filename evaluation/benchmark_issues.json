@@ -4,13 +4,32 @@
     "description": "Historical repro: help_option_names eagerness bug. Pin is the parent of the first fix commit (tree before PR #2811).",
     "base_commit_sha": "273fb90106726daa16e1033eca0d677de76345eb",
     "expected_files_modified": ["src/click/core.py"],
-    "has_reproducible_test": true
+    "has_reproducible_test": true,
+    "human_edits_required": null,
+    "cost_usd": null,
+    "recorded_outcome": null,
+    "notes": "Run with: python main.py run --issue-url URL --base-sha SHA --dry-run"
   },
   {
     "issue_url": "https://github.com/pallets/click/issues/3277",
-    "description": "Open issue (zsh completion parse error). Uses default-branch tip at run time — omit base_commit_sha or set null.",
+    "description": "Open issue (zsh completion parse error). Uses default-branch tip at run time.",
     "base_commit_sha": null,
     "expected_files_modified": [],
-    "has_reproducible_test": true
+    "has_reproducible_test": true,
+    "human_edits_required": null,
+    "cost_usd": null,
+    "recorded_outcome": null,
+    "notes": "Run with: python main.py run --issue-url URL --dry-run"
+  },
+  {
+    "issue_url": "https://github.com/psf/black/issues/3984",
+    "description": "Black formatting regression on specific decorator pattern.",
+    "base_commit_sha": null,
+    "expected_files_modified": [],
+    "has_reproducible_test": true,
+    "human_edits_required": null,
+    "cost_usd": null,
+    "recorded_outcome": null,
+    "notes": "Run with: python main.py run --issue-url URL --dry-run"
   }
 ]

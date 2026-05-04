@@ -6,7 +6,6 @@ from collections import Counter
 import tree_sitter_python as tspython
 from tree_sitter import Language, Parser
 
-
 _PY = Language(tspython.language())
 _PARSER = Parser(_PY)
 

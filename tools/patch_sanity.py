@@ -20,7 +20,7 @@ def sanity_check_unified_diff(unified_diff: str) -> list[str]:
         )
 
     for line in unified_diff.splitlines():
-        if line.startswith("+++ ") or line.startswith("--- "):
+        if line.startswith(("+++ ", "--- ")):
             continue
         if not line.startswith("+") or line.startswith("++"):
             continue
