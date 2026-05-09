@@ -1,8 +1,21 @@
+# --- Secrets & local environment (never push) ---
 .env
-# Entire checkpoints dir is runtime-only (SQLite WAL/SHM, graph state)
-checkpoints/
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+secrets.json
+credentials.json
+credentials.yaml
+*-credentials.json
+.google-creds.json
+service-account*.json
+
+# --- Python ---
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -11,14 +24,36 @@ dist/
 build/
 .venv/
 venv/
-# macOS
-.DS_Store
 
-# runtime logs/artifacts
+# --- LangGraph / runtime state ---
+checkpoints/
+
+# --- Logs & local run output ---
 *.log
 dry_run_full_output.log
+results_click_*.txt
+results_run_*.txt
 
-# coverage artifacts
+# --- Tests / coverage ---
 .coverage
 htmlcov/
 coverage.xml
+
+# --- Editors & IDEs ---
+.idea/
+# Keep optional shared recommendations; ignore local settings (may embed secrets/paths).
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Editor scratch files ---
+Untitled

@@ -81,8 +81,9 @@ def run(
     validation = final_state.get("validation_output")
 
     if patch is not None:
-        console.print("\n[bold yellow]Last Unified Diff[/bold yellow]")
-        console.print(patch.unified_diff)
+        console.print("\n[bold yellow]Last File Changes[/bold yellow]")
+        for fc in patch.file_changes:
+            console.print(f"- {fc.path}: {fc.description}")
 
     if validation is not None:
         console.print("\n[bold yellow]Validation Summary[/bold yellow]")

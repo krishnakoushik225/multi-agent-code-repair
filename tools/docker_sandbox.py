@@ -21,55 +21,52 @@ def parse_exit_codes(stdout: str) -> dict[str, int]:
     return codes
 
 
-def _validate_diff(unified_diff: str) -> str | None:
-    """
-    Return an error string if the diff is obviously malformed, else None.
-    Catches the most common LLM failure modes before wasting a git clone.
-    """
-    if not unified_diff or not unified_diff.strip():
-        return "unified_diff is empty"
-
-    lines = unified_diff.splitlines()
-    seen_files: dict[str, int] = {}
-    for i, line in enumerate(lines, start=1):
-        if line.startswith("diff --git "):
-            # Extract the b/ path as the canonical file key
-            parts = line.split(" ")
-            path = parts[-1] if parts[-1].startswith("b/") else line
-            if path in seen_files:
-                return (
-                    f"Corrupt patch: file '{path}' appears in two separate diff headers "
-                    f"(lines {seen_files[path]} and {i}). Combine all hunks for the same "
-                    "file under a single header."
+def apply_file_changes(repo_root: Path, file_changes: list[dict]) -> list[str]:
+    """Apply search-replace changes to files. Returns list of error strings."""
+    errors: list[str] = []
+    for change in file_changes:
+        path = repo_root / change["path"]
+        if not path.exists():
+            errors.append(f"File not found: {change['path']}")
+            continue
+        content = path.read_text(encoding="utf-8")
+        search = change["search"]
+        replace = change["replace"]
+        if search not in content:
+            # Try normalizing line endings
+            search_normalized = search.replace("\r\n", "\n")
+            content_normalized = content.replace("\r\n", "\n")
+            if search_normalized not in content_normalized:
+                errors.append(
+                    f"Search string not found in {change['path']}. "
+                    f"First 120 chars of search: {search[:120]!r}"
                 )
-            seen_files[path] = i
-
-    if not seen_files:
-        return "unified_diff contains no 'diff --git' headers — not a valid unified diff"
-
-    return None
+                continue
+            content = content_normalized.replace(search_normalized, replace, 1)
+        else:
+            content = content.replace(search, replace, 1)
+        path.write_text(content, encoding="utf-8")
+    return errors
 
 
 def apply_patch_and_run_tests(
     repo_owner: str,
     repo_name: str,
     default_branch: str,
-    unified_diff: str,
+    base_commit_sha: str,
+    file_changes: list[dict],
     tests_written: str | None,
-    *,
-    base_commit_sha: str | None = None,
 ) -> dict:
     """
-    Clone repo, apply patch, optionally write tests, run pytest/ruff/mypy in Docker.
+    Clone repo, apply file changes, optionally write tests, run pytest/ruff/mypy in Docker.
     """
-    diff_error = _validate_diff(unified_diff)
-    if diff_error:
+    if not file_changes:
         return {
             "test_exit_code": 1,
             "lint_exit_code": 1,
             "type_check_exit_code": 1,
             "stdout": "",
-            "stderr": f"Invalid unified_diff: {diff_error}",
+            "stderr": "file_changes list is empty",
         }
 
     try:
@@ -131,31 +128,14 @@ def apply_patch_and_run_tests(
                 "stderr": checkout.stderr or f"git checkout {checkout_ref} failed",
             }
 
-        diff_path = root / "fix.patch"
-        diff_path.write_text(unified_diff, encoding="utf-8")
-        try:
-            apply = subprocess.run(
-                ["git", "-C", str(root), "apply", "--whitespace=nowarn", "--recount", str(diff_path)],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=30,
-            )
-        except subprocess.TimeoutExpired:
+        apply_errors = apply_file_changes(root, file_changes)
+        if apply_errors:
             return {
                 "test_exit_code": 1,
                 "lint_exit_code": 1,
                 "type_check_exit_code": 1,
                 "stdout": "",
-                "stderr": "git apply timed out after 30s",
-            }
-        if apply.returncode != 0:
-            return {
-                "test_exit_code": 1,
-                "lint_exit_code": 1,
-                "type_check_exit_code": 1,
-                "stdout": apply.stdout or "",
-                "stderr": apply.stderr or "git apply failed",
+                "stderr": "\n".join(apply_errors),
             }
 
         if tests_written:

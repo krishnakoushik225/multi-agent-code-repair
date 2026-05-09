@@ -25,6 +25,7 @@ _CHECKPOINT_MSGPACK_TYPES: tuple[tuple[str, str], ...] = (
     ("graph.state", "ResearchOutput"),
     ("graph.state", "RiskLevel"),
     ("graph.state", "PlanningOutput"),
+    ("graph.state", "FileChange"),
     ("graph.state", "PatchOutput"),
     ("graph.state", "RoutingDecision"),
     ("graph.state", "ValidationOutput"),

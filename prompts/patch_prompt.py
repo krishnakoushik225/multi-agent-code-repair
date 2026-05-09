@@ -9,100 +9,58 @@ def build_patch_prompt(
     ctx: IssueContext,
     research: ResearchOutput,
     planning: PlanningOutput,
-    prior_error: dict[str, Any] | None,
+    pinned_file_contents: dict[str, str],
+    prior_error: dict[str, Any] | None = None,
 ) -> str:
-    err = ""
+    _ = research
+    files_block = ""
+    for path, content in (pinned_file_contents or {}).items():
+        truncated = content[:6000] + "\n... (truncated)" if len(content) > 6000 else content
+        files_block += f"\n=== {path} ===\n{truncated}\n"
+
+    retry_block = ""
     if prior_error:
-        err = f"""
-Previous validation attempt failed.
+        retry_block = f"""
+PREVIOUS ATTEMPT FAILED — Apply errors:
+{prior_error.get('stderr', '')[:1000]}
 
-Attempt: {prior_error.get("attempt")}
-stdout (excerpt):
-{prior_error.get("stdout", "")[-8000:]}
-
-stderr (excerpt):
-{prior_error.get("stderr", "")[-8000:]}
+The search string was not found verbatim. Check your search string character by character against the file content shown above. Copy the search string directly from the file — do not paraphrase or reformat it.
 """
 
-    files = "\n".join(f"- {p}" for p in planning.candidate_files)
-    snippets = []
-    for path in planning.candidate_files[:8]:
-        content = research.file_contents.get(path)
-        if content:
-            snippets.append(f"### {path}\n```\n{content[:12000]}\n```")
-    code_blocks = "\n".join(snippets)
+    return f"""You are a precise code repair agent. Output ONLY a JSON object, no markdown, no explanation outside the JSON.
 
-    base = ctx.base_commit_sha or "(default branch tip)"
-    return f"""You produce a unified diff (git apply compatible) for the following GitHub issue.
+ISSUE #{ctx.issue_number}: {ctx.title}
+{ctx.body[:1000]}
 
-The file excerpts below are from repository commit **{base}**. Your diff MUST apply cleanly to that exact revision (same line numbers and context as in the excerpts).
+FIX STRATEGY: {planning.fix_strategy}
+FILES TO MODIFY: {', '.join(planning.candidate_files)}
 
-Issue #{ctx.issue_number}: {ctx.title}
+EXACT FILE CONTENTS (copy search strings verbatim from these):
+{files_block}
 
-Issue body:
-{ctx.body}
+{retry_block}
 
-Planning strategy:
-{planning.fix_strategy}
+OUTPUT FORMAT — return exactly this JSON structure:
+{{
+  "file_changes": [
+    {{
+      "path": "src/click/core.py",
+      "search": "exact string from the file to find — copy character by character",
+      "replace": "replacement string",
+      "description": "one sentence explaining this change"
+    }}
+  ],
+  "explanation": "why this fixes the issue",
+  "tests_written": "python test code as a string, or null"
+}}
 
-Candidate files:
-{files}
+CRITICAL RULES FOR search STRINGS:
+1. Copy the search string EXACTLY from the file content shown above — same indentation, same spacing, same line endings.
+2. Include enough surrounding lines (5-10) to uniquely identify the location.
+3. Never paraphrase, reformat, or reconstruct from memory.
+4. If you cannot find the exact text in the file content above, do not include that change.
+5. Each search string must appear exactly once in the file. If it appears multiple times, add more context lines to make it unique.
 
-Code context:
-{code_blocks}
-{err}
-
-Return STRICT JSON with keys:
-- unified_diff: string (complete unified diff for all modified files)
-- files_modified: string[] (paths modified by the diff)
-- explanation: string
-- tests_written: string or null (REQUIRED when adding tests: full pytest module body for tests/test_auto_generated.py)
-
-Rules for unified_diff — read carefully, violations cause `git apply` to fail:
-- **CRITICAL:** Do NOT include any file under `tests/` in `unified_diff` or `files_modified`. GitHub-style test edits belong in `tests_written` only (saved as tests/test_auto_generated.py). Modifying tests/test_*.py in a unified diff is the #1 cause of corrupt patches.
-- Only patch library/source paths (e.g. `src/`, project package dirs) and optionally docs/changelog if needed. Prefer minimal `src/`-only changes.
-- The diff must apply cleanly with `git apply` against the UNMODIFIED tree at commit {base}.
-- If you modify the same file in multiple places, combine all hunks for that file under a SINGLE `diff --git` header. Never emit two separate `diff --git a/foo.py b/foo.py` headers for the same file — that produces a corrupt patch.
-- Do NOT generate stacked/sequential diffs (where the second diff's base is the output of the first). Every diff header must be relative to the original tree at {base}.
-- Use standard unified diff format: `diff --git a/<path> b/<path>` header, then `--- a/<path>` / `+++ b/<path>`, then `@@ ... @@` hunks.
-- Omit the `index <sha>..<sha>` lines — they are optional and you may get them wrong.
-- Each `@@ -L,N +L,N @@` line must have exactly N unchanged context lines, minus-lines, and plus-lines matching the source. Do not wrap or break lines inside hunks; every context line must match byte-for-byte (including spaces).
-- Never insert Sphinx/reStructuredText directives (lines starting with `.. `) into executable Python code unless they are inside a properly opened and indented docstring block in that file.
-- Never emit incomplete statements (e.g. `x =` with no right-hand side, or a `+` line that is only part of a continued expression).
-- Prefer the smallest change that fixes the issue.
-- If you add tests, put them in `tests_written` as a full file body (saved as tests/test_auto_generated.py). Never put test code in `unified_diff`.
-- For `tests_written`, avoid extremely long lines (many repos use Ruff E501 at 88); split long `assert "..."` strings or use shorter substrings so `ruff check` can pass.
-"""
-
-
-def build_patch_repair_prompt(
-    ctx: IssueContext,
-    research: ResearchOutput,
-    planning: PlanningOutput,
-    issues: list[str],
-    bad_unified_diff: str,
-) -> str:
-    excerpt = bad_unified_diff[:60000]
-    if len(bad_unified_diff) > 60000:
-        excerpt += "\n\n[... diff truncated for repair prompt ...]\n"
-
-    base = ctx.base_commit_sha or "(default branch tip)"
-    return f"""You previously produced a unified diff that failed validation checks before git apply.
-
-Repository commit: {base}
-
-Validation issues (fix all):
-{chr(10).join(f"- {i}" for i in issues)}
-
-Broken unified_diff (repair this — output a complete replacement):
-{excerpt}
-
-Issue #{ctx.issue_number}: {ctx.title}
-Planning: {planning.fix_strategy}
-
-Return STRICT JSON with the same keys as before:
-- unified_diff (must pass: no tests/ paths, no incomplete lines in + lines, git apply clean at {base})
-- files_modified (no paths under tests/)
-- explanation
-- tests_written (full pytest file if tests are needed; null otherwise)
+RULES FOR tests_written:
+The tests_written string must be a complete, self-contained Python file. Always start with all necessary imports. For click tests, always include: import click and from click import Command, Group, Option, Argument and from click.testing import CliRunner at the top of the file. Never reference names that are not imported in the same tests_written string.
 """

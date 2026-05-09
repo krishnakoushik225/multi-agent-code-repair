@@ -19,7 +19,11 @@ def test_route_after_validation_mapping_keys() -> None:
 def test_patch_node_increments_retry_on_prior_validation_failure(mock_completion: MagicMock) -> None:
     mock_completion.return_value = MagicMock()
     mock_completion.return_value.choices = [
-        MagicMock(message=MagicMock(content='{"unified_diff":"","files_modified":[],"explanation":"x"}')),
+        MagicMock(
+            message=MagicMock(
+                content='{"file_changes":[{"path":"src/x.py","search":"a","replace":"b","description":"d"}],"explanation":"x"}'
+            )
+        ),
     ]
 
     state: GraphState = {

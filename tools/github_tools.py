@@ -92,14 +92,15 @@ def get_file_content(
     file_path: str,
     *,
     git_ref: str | None = None,
+    ref: str | None = None,
 ) -> str | None:
     """Fetch a single file's text at a commit SHA or branch name (default: default branch)."""
     g = _client()
     repo = g.get_repo(f"{repo_owner}/{repo_name}")
-    ref = git_ref if git_ref else repo.default_branch
+    resolved_ref = ref if ref else (git_ref if git_ref else repo.default_branch)
 
     try:
-        content_file = _repo_get_contents(repo, file_path, ref)
+        content_file = _repo_get_contents(repo, file_path, resolved_ref)
     except GithubException:
         return None
     except Exception:
@@ -207,12 +208,12 @@ def git_push_patch_branch(
     repo_name: str,
     default_branch: str,
     branch_name: str,
-    unified_diff: str,
+    file_changes: list[dict[str, str]],
     commit_message: str,
     *,
     base_commit_sha: str | None = None,
 ) -> None:
-    """Clone repo, create branch, apply unified diff, commit, and push."""
+    """Clone repo, create branch, apply file changes, commit, and push."""
     token = os.environ["GITHUB_TOKEN"]
     clone_url = _authenticated_clone_url(repo_owner, repo_name, token)
     clone_timeout = int(os.environ.get("SANDBOX_CLONE_TIMEOUT", "300"))
@@ -241,15 +242,19 @@ def git_push_patch_branch(
         if b.returncode != 0:
             raise RuntimeError(f"git checkout -b failed: {b.stderr}")
 
-        patch_path = root / "fix.patch"
-        patch_path.write_text(unified_diff, encoding="utf-8")
-
-        a = _run(
-            ["git", "-C", str(root), "apply", "--whitespace=nowarn", "--recount", str(patch_path)],
-            cwd=Path(tmp),
-        )
-        if a.returncode != 0:
-            raise RuntimeError(f"git apply failed: {a.stderr}")
+        for change in file_changes:
+            rel_path = change["path"]
+            target = root / rel_path
+            if not target.exists():
+                raise RuntimeError(f"file not found while applying change: {rel_path}")
+            content = target.read_text(encoding="utf-8")
+            search = change["search"]
+            replace = change["replace"]
+            if search not in content:
+                raise RuntimeError(
+                    f"search string not found while applying change to {rel_path}: {search[:120]!r}"
+                )
+            target.write_text(content.replace(search, replace, 1), encoding="utf-8")
 
         st = _run(["git", "-C", str(root), "status", "--porcelain"], cwd=Path(tmp))
         if not st.stdout.strip():

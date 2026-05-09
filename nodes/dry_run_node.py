@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import sys
+from rich.console import Console
 
 from graph.state import (
     GraphState,
@@ -12,6 +12,8 @@ from graph.state import (
 )
 from tools.github_tools import ensure_branch_name, slugify
 from tools.pr_template import build_pr_body, build_pr_title
+
+console = Console()
 
 
 def dry_run_node(state: GraphState) -> dict:
@@ -34,13 +36,17 @@ def dry_run_node(state: GraphState) -> dict:
     title = build_pr_title(ctx)
     body = build_pr_body(ctx, planning, patch, validation)
 
-    print("\n========== DRY RUN — unified diff ==========\n", file=sys.stdout)
-    print(patch.unified_diff or "(empty diff)", file=sys.stdout)
-    print("\n========== DRY RUN — PR title ==========\n", file=sys.stdout)
-    print(title, file=sys.stdout)
-    print("\n========== DRY RUN — branch ==========\n", file=sys.stdout)
-    print(branch_name, file=sys.stdout)
-    print("\n========== DRY RUN — PR body template ==========\n", file=sys.stdout)
-    print(body, file=sys.stdout)
+    console.print("\n========== DRY RUN — file changes ==========\n")
+    for fc in patch.file_changes:
+        console.print(f"\n[bold]File:[/bold] {fc.path}")
+        console.print(f"[bold]Change:[/bold] {fc.description}")
+        console.print(f"[dim]Search:[/dim]\n{fc.search[:200]}")
+        console.print(f"[dim]Replace:[/dim]\n{fc.replace[:200]}")
+    console.print("\n========== DRY RUN — PR title ==========\n")
+    console.print(title)
+    console.print("\n========== DRY RUN — branch ==========\n")
+    console.print(branch_name)
+    console.print("\n========== DRY RUN — PR body template ==========\n")
+    console.print(body)
 
     return {"final_status": "success"}

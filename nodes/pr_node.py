@@ -63,7 +63,7 @@ def pr_node(state: GraphState) -> dict:
             repo_name=ctx.repo_name,
             default_branch=ctx.default_branch,
             branch_name=branch_name,
-            unified_diff=patch.unified_diff,
+            file_changes=[fc.model_dump() for fc in patch.file_changes],
             commit_message=commit_message,
             base_commit_sha=ctx.base_commit_sha or None,
         )

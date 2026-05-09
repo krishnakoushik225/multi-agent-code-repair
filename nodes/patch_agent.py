@@ -6,6 +6,7 @@ import os
 from litellm import completion
 
 from graph.state import (
+    FileChange,
     GraphState,
     IssueContext,
     PatchOutput,
@@ -15,14 +16,14 @@ from graph.state import (
     as_model,
 )
 from logging_config import get_logger
-from prompts.patch_prompt import build_patch_prompt, build_patch_repair_prompt
-from tools.patch_sanity import sanity_check_unified_diff
+from prompts.patch_prompt import build_patch_prompt
+from tools.github_tools import get_file_content
 
 logger = get_logger(__name__)
 
 
 def patch_node(state: GraphState) -> dict:
-    """LLM agent. Generates unified diff. On retry, receives prior stderr in context."""
+    """LLM agent. Generates structured file_changes. On retry, receives prior stderr in context."""
     logger.info("node starting")
     raw_ctx = state["issue_context"]
     raw_research = state["research_output"]
@@ -49,7 +50,18 @@ def patch_node(state: GraphState) -> dict:
             "attempt": retry_count,
         }
 
-    prompt = build_patch_prompt(ctx, research, planning, prior_error)
+    pinned_file_contents: dict[str, str] = {}
+    for file_path in planning.candidate_files:
+        content_text = get_file_content(
+            ctx.repo_owner,
+            ctx.repo_name,
+            file_path,
+            ref=ctx.base_commit_sha or None,
+        )
+        if content_text:
+            pinned_file_contents[file_path] = content_text
+
+    prompt = build_patch_prompt(ctx, research, planning, pinned_file_contents, prior_error)
     model = os.environ.get("PATCH_MODEL", os.environ.get("LLM_MODEL", "gpt-4o"))
     response = completion(
         model=model,
@@ -63,45 +75,30 @@ def patch_node(state: GraphState) -> dict:
         logger.error("LLM returned invalid JSON: %s", content[:200])
         return {"error_message": f"LLM returned invalid JSON: {content[:200]}", "final_status": "failed"}
 
+    raw_changes = llm_output.get("file_changes", [])
+    if not isinstance(raw_changes, list):
+        logger.error("LLM returned invalid file_changes payload")
+        return {"error_message": "LLM returned invalid file_changes payload", "final_status": "failed"}
+    file_changes: list[FileChange] = []
+    for item in raw_changes:
+        try:
+            file_changes.append(FileChange.model_validate(item))
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Invalid file change from LLM: %s", exc)
+            return {"error_message": f"Invalid file change from LLM: {exc}", "final_status": "failed"}
+
     output = PatchOutput(
-        unified_diff=str(llm_output.get("unified_diff", "")),
-        files_modified=list(llm_output.get("files_modified", [])),
+        file_changes=file_changes,
         explanation=str(llm_output.get("explanation", "")),
         tests_written=llm_output.get("tests_written"),
     )
-
-    sanity_issues = sanity_check_unified_diff(output.unified_diff)
-    if sanity_issues:
-        repair_prompt = build_patch_repair_prompt(
-            ctx, research, planning, sanity_issues, output.unified_diff
-        )
-        repair_resp = completion(
-            model=model,
-            messages=[{"role": "user", "content": repair_prompt}],
-            response_format={"type": "json_object"},
-        )
-        repair_content = repair_resp.choices[0].message.content or "{}"
-        try:
-            repaired_raw = json.loads(repair_content)
-        except json.JSONDecodeError:
-            pass
-        else:
-            candidate = PatchOutput(
-                unified_diff=str(repaired_raw.get("unified_diff", "")),
-                files_modified=list(repaired_raw.get("files_modified", [])),
-                explanation=str(repaired_raw.get("explanation", output.explanation)),
-                tests_written=repaired_raw.get("tests_written", output.tests_written),
-            )
-            if not sanity_check_unified_diff(candidate.unified_diff):
-                output = candidate
 
     new_retry = retry_count + 1 if prior_error is not None else retry_count
     logger.info(
         "node complete",
         extra={
             "output_payload": {
-                "files_modified_count": len(output.files_modified),
-                "unified_diff_chars": len(output.unified_diff or ""),
+                "file_changes_count": len(output.file_changes),
                 "has_tests_written": output.tests_written is not None,
                 "retry_count_after": new_retry,
             },

@@ -25,6 +25,7 @@ def validation_node(state: GraphState) -> dict:
 
     ctx = as_model(IssueContext, raw_ctx)
     patch = as_model(PatchOutput, raw_patch)
+    file_changes = [fc.model_dump() for fc in patch.file_changes]
 
     retry_count = int(state.get("retry_count", 0))
     max_retries = int(state.get("max_retries", 3))
@@ -33,9 +34,9 @@ def validation_node(state: GraphState) -> dict:
         repo_owner=ctx.repo_owner,
         repo_name=ctx.repo_name,
         default_branch=ctx.default_branch,
-        unified_diff=patch.unified_diff,
+        base_commit_sha=ctx.base_commit_sha,
+        file_changes=file_changes,
         tests_written=patch.tests_written,
-        base_commit_sha=ctx.base_commit_sha or None,
     )
 
     tests_passed = int(result["test_exit_code"]) == 0

@@ -67,9 +67,15 @@ class PlanningOutput(BaseModel):
     ambiguity_reason: str | None = None
 
 
+class FileChange(BaseModel):
+    path: str = Field(description="Relative file path from repo root, e.g. src/click/core.py")
+    search: str = Field(description="Exact string to find in the file — must match verbatim")
+    replace: str = Field(description="Exact string to replace it with")
+    description: str = Field(description="One sentence explaining this change")
+
+
 class PatchOutput(BaseModel):
-    unified_diff: str = Field(description="Full unified diff of the proposed changes")
-    files_modified: list[str]
+    file_changes: list[FileChange] = Field(description="List of search-replace changes to apply")
     explanation: str = Field(description="Why this patch addresses the issue")
     tests_written: str | None = Field(None, description="New test code if required")
 
