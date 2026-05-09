@@ -52,7 +52,7 @@ Reproduce the benchmark numbers: **[`RESULTS.md`](RESULTS.md)** (Recorded Runs).
 
 ## 📊 Demonstrated Outcomes
 
-Recorded runs (commands and stderr excerpts) live in **[`RESULTS.md`](RESULTS.md)**.
+Recorded runs for **[click#3277](https://github.com/pallets/click/issues/3277)** and **[click#2811](https://github.com/pallets/click/issues/2811)** (commands and stderr excerpts) live in **[`RESULTS.md`](RESULTS.md)**.
 
 | Metric | click#3277 | click#2811 |
 |--------|------------|------------|
@@ -65,13 +65,6 @@ Recorded runs (commands and stderr excerpts) live in **[`RESULTS.md`](RESULTS.md
 | Outcome | Near-success* | Human review |
 
 *Single failure is a pre-existing flaky Docker/pager test in upstream click — not introduced by the generated fix.*
-
-Summary:
-
-| Issue | Outcome | Notes |
-|-------|---------|--------|
-| [click#3277](https://github.com/pallets/click/issues/3277) | **Near-success:** 1,401 / 1,402 tests; lint & type-check clean | Single failure attributed to upstream flaky test |
-| [click#2811](https://github.com/pallets/click/issues/2811) | Routed to **human review** after retries | Illustrates limits when the tree at a pinned SHA diverges from what the model assumes |
 
 ## 🏗️ Architecture
 
