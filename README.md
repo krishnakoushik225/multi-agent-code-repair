@@ -1,28 +1,30 @@
 ![CI](https://github.com/krishnakoushik225/multi-agent-code-repair/actions/workflows/ci.yml/badge.svg)
 
-# Multi-agent autonomous code repair
+# Multi-Agent Code Repair 🔧
 
-**On a real [pallets/click](https://github.com/pallets/click) issue, validation saw 1,401 / 1,402 tests passing with Ruff and Mypy clean—median wall-clock on the order of ~2 minutes and ~$0.37 model spend per end-to-end attempt** (see [`RESULTS.md`](RESULTS.md)). The remaining failure is a known flaky Docker/pager test in upstream Click’s suite, not introduced by the generated fix.
+### Autonomous GitHub Issue → Validated Patch Pipeline · LangGraph · Docker · Search-Replace Patching
+
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org)
+[![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-purple)](https://github.com/langchain-ai/langgraph)
+[![LiteLLM](https://img.shields.io/badge/LiteLLM-multi--provider-black)](https://litellm.ai)
+[![Docker](https://img.shields.io/badge/Docker-sandboxed-blue?logo=docker)](https://docker.com)
+[![PyGithub](https://img.shields.io/badge/PyGithub-API-black?logo=github)](https://pygithub.readthedocs.io)
+[![Pydantic](https://img.shields.io/badge/Pydantic-v2-red)](https://docs.pydantic.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
+
+> **Multi-Agent Code Repair** is a production-grade autonomous repair system — give it a GitHub issue URL and it researches the codebase, plans a minimal fix, generates structured search-replace patches grounded in verbatim file content at a pinned commit, validates them in an isolated Docker sandbox (pytest, Ruff, Mypy), retries with structured failure feedback, and opens a pull request. On a real [pallets/click](https://github.com/pallets/click) issue, validation saw **1,401 / 1,402 tests passing with Ruff and Mypy clean** at a median cost of ~$0.37 and ~2 minutes per attempt.
 
 This repository implements a **stateful LangGraph workflow**, not a prompt chain: it ingests a GitHub issue, researches the repo with **deterministic tools plus LLM reasoning**, plans a minimal change, emits **structured search-and-replace edits** grounded in **verbatim files at a pinned commit**, validates in a **resource-limited Docker sandbox** (pytest, Ruff, Mypy), **retries with structured failure feedback**, optionally opens a PR, and persists progress with **SQLite checkpointing** so runs can resume after interruptions.
 
 If you only read one architectural lesson: **unified diffs often fail on pinned historical SHAs because models invent context lines.** This system sidesteps that class of failure by fetching real file contents at `base_commit_sha` and asking the model for explicit `search`/`replace` blocks—design driven by production failures, not a tutorial default.
 
----
+## 🎬 Demo
 
-## Table of contents
-
-- [Why this stands out](#why-this-stands-out-in-a-crowded-ai-portfolio)
-- [Demonstrated outcomes](#demonstrated-outcomes)
-- [Architecture](#architecture-at-a-glance)
-- [Quickstart](#quickstart)
-- [Technical decisions](#technical-decisions)
-- [Repository layout](#repository-layout)
-- [Contributing & operator docs](#contributing--operator-docs)
+> *Screen recording coming soon — will show issue URL input → node progression → 1,401/1,402 validation output.*
 
 ---
 
-## Why this stands out (in a crowded AI portfolio)
+## 🎯 What Makes This Different from a Basic Agentic System
 
 | Signal | What this repo does |
 |--------|----------------------|
@@ -33,9 +35,7 @@ If you only read one architectural lesson: **unified diffs often fail on pinned 
 | **Operability** | SQLite checkpoints, structured logging with correlation IDs (`logging_config.py`), CI (Ruff + pytest) |
 | **Honest iteration** | Patch representation evolved from fragile unified-diff apply to pinned-SHA search/replace after observing real apply failures |
 
----
-
-## Demonstrated outcomes
+## 📊 Demonstrated Outcomes
 
 Recorded runs (commands and stderr excerpts) live in **[`RESULTS.md`](RESULTS.md)**. Summary:
 
@@ -44,13 +44,20 @@ Recorded runs (commands and stderr excerpts) live in **[`RESULTS.md`](RESULTS.md
 | [click#3277](https://github.com/pallets/click/issues/3277) | **Near-success:** 1,401 / 1,402 tests; lint & type-check clean | Single failure attributed to upstream flaky test |
 | [click#2811](https://github.com/pallets/click/issues/2811) | Routed to **human review** after retries | Illustrates limits when the tree at a pinned SHA diverges from what the model assumes |
 
----
+## 🏗️ Architecture
 
-## Architecture (at a glance)
-
-```text
-ingestion → research → planning → patch → validation ─┬→ PR / dry-run
-         └ failures ───────────────────→ human_review / terminal failure
+```mermaid
+graph TD
+    A[GitHub Issue URL] --> B[Ingestion Node<br/>pins base_commit_sha]
+    B --> C[Research Agent<br/>GitHub Search + tree-sitter]
+    C --> D[Planning Agent<br/>risk + ambiguity flags]
+    D -->|high risk + ambiguous| H[Human Review]
+    D --> E[Patch Agent<br/>fetches file content at pinned SHA<br/>generates search/replace blocks]
+    E --> F[Validation Node<br/>git clone → apply → Docker sandbox<br/>pytest + Ruff + Mypy]
+    F -->|tests pass| G[PR Node / Dry-Run]
+    F -->|tests fail, retries remain| E
+    F -->|retries exhausted| H
+    G --> I[GitHub Pull Request]
 ```
 
 - **Ingestion:** Issue metadata + **pinned `base_commit_sha`** (default branch tip unless overridden).
@@ -60,9 +67,91 @@ ingestion → research → planning → patch → validation ─┬→ PR / dry-
 - **Validation:** Clone at that SHA, apply edits deterministically, optional generated test module, run pytest / Ruff / Mypy inside Docker.
 - **Terminal nodes:** Open PR, dry-run artifacts, human escalation, or hard failure.
 
----
+### Node responsibilities
 
-## Quickstart
+| Node | Type | Role |
+|------|------|------|
+| **Ingestion** | Deterministic | Parses issue URL, fetches metadata, pins `base_commit_sha` to a fixed revision |
+| **Research** | LLM + tools | Suggests candidate files via GitHub Search API; fetches content; extracts symbols with tree-sitter |
+| **Planning** | LLM | Produces fix strategy, risk level, ambiguity flags; high-risk ambiguous issues route directly to human review |
+| **Patch** | LLM | Fetches file content at pinned SHA; generates `file_changes` (path + search + replace); on retry receives prior `stderr` from state |
+| **Validation** | Deterministic | Clones repo at pinned SHA, applies `file_changes` via Python string replace, runs pytest + Ruff + Mypy in Docker sandbox |
+| **PR / Dry-run** | Deterministic | Pushes branch and opens PR, or prints patch summary with no side effects |
+| **Human review** | Terminal | Explicit escalation state — reached when retries exhaust or planning flags high ambiguity |
+
+**Deliberate non-LLM boundaries:** issue ingestion, file fetching, symbol extraction, patch application, sandbox execution, git operations, and PR creation are all deterministic. LLMs are used only where semantic reasoning is required — research, planning, and patching.
+
+### State schema
+
+All inter-node data flows through a single `GraphState` TypedDict. Every agent output is a Pydantic model; `as_model()` rehydrates plain dicts after SQLite checkpoint round-trips.
+
+```
+GraphState
+├── issue_url: str
+├── dry_run: bool
+├── base_commit_sha_override: str | None
+├── issue_context: IssueContext | None # repo, issue number, base_commit_sha
+├── research_output: ResearchOutput | None
+├── planning_output: PlanningOutput | None
+├── patch_output: PatchOutput | None   # file_changes: List[FileChange]
+│   └── FileChange                     # path, search, replace (optional description)
+├── validation_output: ValidationOutput | None
+├── pr_output: PROutput | None
+├── retry_count: int                   # incremented on each patch retry
+├── max_retries: int                   # default 3
+├── error_message: str | None
+└── final_status: str | None           # e.g. success | human_review | failed
+```
+
+Routing decisions read typed boolean fields (`tests_passed`, `retry_count`) — never parsed strings.
+
+### The retry loop (key mechanism)
+
+The conditional edge between validation and patch is what makes this a stateful system rather than a chain:
+
+```mermaid
+sequenceDiagram
+    participant P as Patch Agent (LLM)
+    participant S as GraphState
+    participant V as Validation Node
+    participant D as Docker Sandbox
+
+    P->>S: write file_changes, tests_written
+    S->>V: read patch_output
+    V->>D: clone @ base_commit_sha, apply, run pytest+ruff+mypy
+    D-->>V: test_exit_code, stderr, stdout
+    V->>S: write tests_passed, lint_passed, stderr, routing_decision
+
+    alt tests_passed is true
+        S-->>P: route → PR node
+    else retry_count less than max_retries
+        S-->>P: route → Patch Agent (stderr in context)
+        Note over P: LLM reads prior stderr<br/>and generates revised file_changes
+    else retries exhausted
+        S-->>P: route → Human Review
+    end
+```
+
+The critical detail: stderr from Docker is a typed field in GraphState. The patch agent doesn't receive a generic "it failed" signal — it receives the exact pytest output and search-string errors so the LLM can reason about what specifically went wrong.
+
+## 🔬 Example Run
+
+**Issue:** [pallets/click#3277](https://github.com/pallets/click/issues/3277) — zsh completion parse error
+
+**Pipeline trace:**
+
+```
+[ingestion]  → pinned base_commit_sha: fc6c7c47
+[research]   → 5 relevant files, 25 symbols, confidence: 0.92
+[planning]   → risk: low, candidate_files: 2, requires_new_tests: true
+[patch]      → 1 file_change block, tests_written: true
+[validation] → 1,401 / 1,402 tests passing · lint_passed: true · type_check_passed: true
+[dry_run]    → patch summary printed, no PR opened
+```
+
+**Result:** 99.9% of click's existing test suite passing. Single failure is a pre-existing flaky Docker/pager test in upstream click — unrelated to the generated fix.
+
+## 🚀 Quickstart
 
 ```bash
 cd multi-agent-code-repair
@@ -97,9 +186,7 @@ Batch benchmark:
 python main.py evaluate --benchmark-file evaluation/benchmark_issues.json
 ```
 
----
-
-## Technical decisions
+## ⚙️ Technical Decisions
 
 **Why LangGraph instead of a linear chain?**  
 Repair is inherently **stateful**: validation stderr, exit codes, and retry counts feed back into the patch node on the next hop. Typed routing reads structured fields (`tests_passed`, `retry_count`, …), not free-form prose.
@@ -128,9 +215,7 @@ Research excerpts, fetched patch inputs, and the validation clone must all refer
 **Patch hygiene (`tools/patch_sanity.py`)**  
 Fast deterministic rules—empty search strings, no-op replacements, forbidden direct edits under `tests/` (tests belong in `tests_written`)—are encoded here and covered by unit tests so risky shapes are documented and regressions are caught in CI.
 
----
-
-## Repository layout
+## 📁 Repository Layout
 
 | Path | Role |
 |------|------|
@@ -143,16 +228,8 @@ Fast deterministic rules—empty search strings, no-op replacements, forbidden d
 | `evaluation/` | Benchmark harness and datasets |
 | `tests/` | Pytest suite (routing, sandbox markers, patch rules, integration) |
 
----
-
-## Contributing & operator docs
+## 🤝 Contributing & Operator Docs
 
 **[`CLAUDE.md`](CLAUDE.md)** is the implementation guide for contributors and coding agents: state contracts, routing invariants, sandbox assumptions, and safe change patterns.
 
 For end-to-end benchmark numbers and run logs, see **`RESULTS.md`**.
-
----
-
-### Demo (recommended for portfolios)
-
-A short screen recording (issue URL → node progression → validation summary) materially improves how quickly reviewers understand the system. Add a link or GIF above the quickstart when you have one.
