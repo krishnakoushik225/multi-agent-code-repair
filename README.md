@@ -20,7 +20,22 @@ If you only read one architectural lesson: **unified diffs often fail on pinned 
 
 ## 🎬 Demo
 
-> *Screen recording coming soon — will show issue URL input → node progression → 1,401/1,402 validation output.*
+**Architecture — graph state & retry loop** (`stderr` / `tests_passed` are typed fields; SQLite persists after every node):
+
+![GraphState with patch agent, validation node, Docker pytest+ruff+mypy, retry loop, PR/dry-run vs human review](docs/readme-graph-state-retry.png)
+
+**Terminal — full pipeline (issue URL → nodes → validation summary)**  
+For parity with video demos on other portfolio repos, add one of:
+
+| Approach | Action |
+|----------|--------|
+| **A — GIF (best)** | Record ~90s (asciinema, QuickTime, or [VHS](https://github.com/charmbracelet/vhs)), export **`docs/demo-run.gif`**, then embed it here with `![](docs/demo-run.gif)`. |
+| **B — Screenshot** | Capture the terminal showing validation + **1,401 / 1,402**, save as **`docs/demo-terminal.png`**, embed with `![](docs/demo-terminal.png)`. |
+| **C — Loom** | Uncomment and set your share URL on the line below. |
+
+<!-- [![Watch demo on Loom](https://img.shields.io/badge/Watch-Loom-652b91?logo=loom)](https://www.loom.com/share/REPLACE_WITH_YOUR_ID) -->
+
+Reproduce the benchmark numbers: **[`RESULTS.md`](RESULTS.md)** (Recorded Runs).
 
 ---
 
@@ -37,7 +52,21 @@ If you only read one architectural lesson: **unified diffs often fail on pinned 
 
 ## 📊 Demonstrated Outcomes
 
-Recorded runs (commands and stderr excerpts) live in **[`RESULTS.md`](RESULTS.md)**. Summary:
+Recorded runs (commands and stderr excerpts) live in **[`RESULTS.md`](RESULTS.md)**.
+
+| Metric | click#3277 | click#2811 |
+|--------|------------|------------|
+| Tests passing | **1,401 / 1,402 (99.9%)** | N/A (apply phase) |
+| Lint (Ruff) | ✅ Clean | ✅ Clean (attempt 1) |
+| Type check (Mypy) | ✅ Clean | ✅ Clean (attempt 1) |
+| Retries used | 3 | 3 |
+| Wall-clock time | ~2 min | ~2 min |
+| Model cost | ~$0.35 | ~$0.40 |
+| Outcome | Near-success* | Human review |
+
+*Single failure is a pre-existing flaky Docker/pager test in upstream click — not introduced by the generated fix.*
+
+Summary:
 
 | Issue | Outcome | Notes |
 |-------|---------|--------|
