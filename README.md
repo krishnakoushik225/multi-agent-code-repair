@@ -245,8 +245,4 @@ Fast deterministic rules—empty search strings, no-op replacements, forbidden d
 | `evaluation/` | Benchmark harness and datasets |
 | `tests/` | Pytest suite (routing, sandbox markers, patch rules, integration) |
 
-## 🤝 Contributing & Operator Docs
-
-**[`CLAUDE.md`](CLAUDE.md)** is the implementation guide for contributors and coding agents: state contracts, routing invariants, sandbox assumptions, and safe change patterns.
-
 For end-to-end benchmark numbers and run logs, see **`RESULTS.md`**.
