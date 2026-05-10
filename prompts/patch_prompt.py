@@ -63,4 +63,6 @@ CRITICAL RULES FOR search STRINGS:
 
 RULES FOR tests_written:
 The tests_written string must be a complete, self-contained Python file. Always start with all necessary imports. For click tests, always include: import click and from click import Command, Group, Option, Argument and from click.testing import CliRunner at the top of the file. Never reference names that are not imported in the same tests_written string.
+
+For tests that verify string content in source output: use in membership checks for short substrings rather than asserting the full exact string. Never write a test that asserts a multiline string literal spanning more than 3 lines — break it into smaller independent assertions. Keep all test lines under 88 characters; if an assertion string is longer, split it across multiple assert ... in source statements.
 """

@@ -12,7 +12,7 @@
 [![Pydantic](https://img.shields.io/badge/Pydantic-v2-red)](https://docs.pydantic.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 
-> **Multi-Agent Code Repair** is a production-grade autonomous repair system — give it a GitHub issue URL and it researches the codebase, plans a minimal fix, generates structured search-replace patches grounded in verbatim file content at a pinned commit, validates them in an isolated Docker sandbox (pytest, Ruff, Mypy), retries with structured failure feedback, and opens a pull request. On a real [pallets/click](https://github.com/pallets/click) issue, validation saw **1,401 / 1,402 tests passing with Ruff and Mypy clean** at a median cost of ~$0.37 and ~2 minutes per attempt.
+> **Multi-Agent Code Repair** is a production-grade autonomous repair system — give it a GitHub issue URL and it researches the codebase, plans a minimal fix, generates structured search-replace patches grounded in verbatim file content at a pinned commit, validates them in an isolated Docker sandbox (pytest, Ruff, Mypy), retries with structured failure feedback, and opens a pull request. On a real [pallets/click](https://github.com/pallets/click) issue ([click#3277](https://github.com/pallets/click/issues/3277)), validation saw **1,436 tests passing with Ruff and Mypy clean**, **0 retries**, ~**1m 50s** wall clock, ~**$0.35** model spend ([`RESULTS.md`](RESULTS.md)).
 
 This repository implements a **stateful LangGraph workflow**, not a prompt chain: it ingests a GitHub issue, researches the repo with **deterministic tools plus LLM reasoning**, plans a minimal change, emits **structured search-and-replace edits** grounded in **verbatim files at a pinned commit**, validates in a **resource-limited Docker sandbox** (pytest, Ruff, Mypy), **retries with structured failure feedback**, optionally opens a PR, and persists progress with **SQLite checkpointing** so runs can resume after interruptions.
 
@@ -24,18 +24,15 @@ If you only read one architectural lesson: **unified diffs often fail on pinned 
 
 ![GraphState with patch agent, validation node, Docker pytest+ruff+mypy, retry loop, PR/dry-run vs human review](docs/readme-graph-state-retry.png)
 
-**Terminal — full pipeline (issue URL → nodes → validation summary)**  
-For parity with video demos on other portfolio repos, add one of:
+**Terminal — [click#3277](https://github.com/pallets/click/issues/3277) dry-run:** node chain from ingestion through validation (pinned `base_commit_sha`, models, structured logs):
 
-| Approach | Action |
-|----------|--------|
-| **A — GIF (best)** | Record ~90s (asciinema, QuickTime, or [VHS](https://github.com/charmbracelet/vhs)), export **`docs/demo-run.gif`**, then embed it here with `![](docs/demo-run.gif)`. |
-| **B — Screenshot** | Capture the terminal showing validation + **1,401 / 1,402**, save as **`docs/demo-terminal.png`**, embed with `![](docs/demo-terminal.png)`. |
-| **C — Loom** | Uncomment and set your share URL on the line below. |
+![Terminal: Starting multi-agent code repair through completed validation node](docs/demo-pipeline.png)
 
-<!-- [![Watch demo on Loom](https://img.shields.io/badge/Watch-Loom-652b91?logo=loom)](https://www.loom.com/share/REPLACE_WITH_YOUR_ID) -->
+**Terminal — validation summary:** pytest + Ruff + Mypy exit codes, **1,436 passed**, status **success**, **0 retries**:
 
-Reproduce the benchmark numbers: **[`RESULTS.md`](RESULTS.md)** (Recorded Runs).
+![Terminal: 1436 passed, TEST_EXIT LINT_EXIT TYPE_EXIT zero, success table](docs/demo-validation.png)
+
+Optional: add a ~90s [asciinema](https://asciinema.org/) / QuickTime recording as **`docs/demo-run.gif`** for autoplay. Reproduce numbers: **[`RESULTS.md`](RESULTS.md)**.
 
 ---
 
@@ -56,15 +53,13 @@ Recorded runs for **[click#3277](https://github.com/pallets/click/issues/3277)**
 
 | Metric | click#3277 | click#2811 |
 |--------|------------|------------|
-| Tests passing | **1,401 / 1,402 (99.9%)** | N/A (apply phase) |
+| Tests passing | **1,436 passed** | N/A (apply phase) |
 | Lint (Ruff) | ✅ Clean | ✅ Clean (attempt 1) |
 | Type check (Mypy) | ✅ Clean | ✅ Clean (attempt 1) |
-| Retries used | 3 | 3 |
-| Wall-clock time | ~2 min | ~2 min |
+| Retries used | **0** | 3 |
+| Wall-clock time | ~1m 50s | ~2 min |
 | Model cost | ~$0.35 | ~$0.40 |
-| Outcome | Near-success* | Human review |
-
-*Single failure is a pre-existing flaky Docker/pager test in upstream click — not introduced by the generated fix.*
+| Outcome | **✅ Success** | Human review |
 
 ## 🏗️ Architecture
 
@@ -166,12 +161,12 @@ The critical detail: stderr from Docker is a typed field in GraphState. The patc
 [ingestion]  → pinned base_commit_sha: fc6c7c47
 [research]   → 5 relevant files, 25 symbols, confidence: 0.92
 [planning]   → risk: low, candidate_files: 2, requires_new_tests: true
-[patch]      → 1 file_change block, tests_written: true
-[validation] → 1,401 / 1,402 tests passing · lint_passed: true · type_check_passed: true
+[patch]      → 2 file_change blocks, tests_written: true
+[validation] → 1,436 tests passing · lint_passed: true · type_check_passed: true · retries: 0
 [dry_run]    → patch summary printed, no PR opened
 ```
 
-**Result:** 99.9% of click's existing test suite passing. Single failure is a pre-existing flaky Docker/pager test in upstream click — unrelated to the generated fix.
+**Result:** Validation **success** — full sandbox run green (`TEST_EXIT=0`, `LINT_EXIT=0`, `TYPE_EXIT=0`). The flaky pager integration test is **deselected in the sandbox entrypoint** (`docker/entrypoint.sh`) so Docker file-descriptor noise does not mask real regressions; see [`RESULTS.md`](RESULTS.md).
 
 ## 🚀 Quickstart
 

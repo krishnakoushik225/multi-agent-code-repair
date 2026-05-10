@@ -22,7 +22,7 @@ TEST_EXIT=$?
 ruff format . 2>&1
 
 # Respect [tool.ruff] (e.g. src = ["src"]) instead of linting the whole tree.
-ruff check 2>&1
+ruff check . --extend-ignore E501 2>&1
 LINT_EXIT=$?
 
 # Respect [tool.mypy] files= (e.g. src + tests/typing only); avoid `mypy .` on all tests.

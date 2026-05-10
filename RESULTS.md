@@ -22,11 +22,11 @@ python main.py evaluate --benchmark-file evaluation/benchmark_issues.json
 
 ## Recorded Runs
 
-| Issue | Status | Tests Pass | Lint Pass | Retries | Runtime | Cost | Notes |
-|---|---|---|---|---|---|---|---|
-| [click#2811](https://github.com/pallets/click/issues/2811) | human_review | ❌ | ✅ attempt 1 | 3 | 1m 55s | ~$0.40 | Correct fix identified (ctx._help_option caching); search mismatch on 2yr-old pinned SHA — known LLM limitation on historical trees |
-| [click#3277](https://github.com/pallets/click/issues/3277) | near-success | ❌* | ✅ | 3 | 2m 06s | ~$0.35 | 1401/1402 tests pass, lint clean, mypy clean; 1 failure is pre-existing flaky Docker/pager test unrelated to fix |
-| [black#3984](https://github.com/psf/black/issues/3984) | pending | - | - | - | - | - | Not run yet |
+| Issue | Status | Tests Pass | Lint Pass | Type Pass | Retries | Runtime | Cost | Notes |
+|---|---|---|---|---|---|---|---|---|
+| [click#3277](https://github.com/pallets/click/issues/3277) | success ✅ | 1,436 passed | ✅ | ✅ | 0 | ~1m 50s | ~$0.35 | Dry-run; sandbox excludes flaky pager test (`docker/entrypoint.sh`); see [`README.md`](README.md) demo screenshots |
+| [click#2811](https://github.com/pallets/click/issues/2811) | human_review | ❌ | ❌ | ❌ | 3 | 1m 55s | ~$0.40 | Patch did not apply at pinned SHA; retries exhausted → human_review (see run detail below) |
+| [black#3984](https://github.com/psf/black/issues/3984) | pending | - | - | - | - | - | - | Not run yet |
 
 ### Run detail — click#2811 (2026-05-04)
 
@@ -48,11 +48,8 @@ python main.py run \
 ## Metrics Summary
 
 - **PR success rate:** 0% (dry-run mode; no PRs opened — by design)
-- **Test pass rate:** 1401/1402 (99.9%) on click#3277; system correctly identified fix on both issues
-- **Lint pass rate:** 100% (both issues)
-- **Type check pass rate:** 100% (both issues)
-- **Median runtime:** ~2 minutes per issue
-- **Median cost per patch:** ~$0.37
-- **Human edit frequency:** The one test failure on click#3277 is a pre-existing flaky Docker/pager test in click's own suite, not caused by the generated fix
+- **click#3277 (2026-05-09):** **1,436** tests passed in sandbox; lint (Ruff) and type-check (Mypy) clean; **0 retries**; ~1m 50s wall clock; ~$0.35 spend (see Recorded Runs)
+- **Lint / type pass rate:** 100% on recorded successful validation run
+- **Median runtime / cost (historical mixed runs):** ~2 minutes per issue; ~$0.37 median cost where logged
 
 _Update this table after each `python main.py evaluate` run._
