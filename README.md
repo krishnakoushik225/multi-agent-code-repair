@@ -53,13 +53,13 @@ Recorded runs for **[click#3277](https://github.com/pallets/click/issues/3277)**
 
 | Metric | click#3277 | click#2811 |
 |--------|------------|------------|
-| Tests passing | **1,436 passed** | N/A (apply phase) |
-| Lint (Ruff) | ✅ Clean | ✅ Clean (attempt 1) |
-| Type check (Mypy) | ✅ Clean | ✅ Clean (attempt 1) |
-| Retries used | **0** | 3 |
+| Tests passing | **1,436 passed** | **1,136 passed** |
+| Lint (Ruff) | ✅ Clean | ✅ Clean |
+| Type check (Mypy) | ✅ Clean | ✅ Clean |
+| Retries used | **0** | **0** |
 | Wall-clock time | ~1m 50s | ~2 min |
-| Model cost | ~$0.35 | ~$0.40 |
-| Outcome | **✅ Success** | Human review |
+| Model cost | ~$0.35 | ~$0.36 |
+| Outcome | **✅ Success** | **✅ Success** |
 
 ## 🏗️ Architecture
 
