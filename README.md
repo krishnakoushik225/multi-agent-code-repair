@@ -43,8 +43,8 @@ Optional: add a ~90s [asciinema](https://asciinema.org/) / QuickTime recording a
 | **Real integrations** | GitHub API (PyGithub), Docker SDK, LiteLLM—not mocked demos |
 | **Measured on real OSS** | Benchmarks recorded against live issues; metrics in [`RESULTS.md`](RESULTS.md) |
 | **Stateful orchestration** | Conditional edges over typed graph state, not a single mega-prompt |
-| **Safety boundaries** | Sandboxed execution with network isolation and CPU/memory caps |
-| **Operability** | SQLite checkpoints, structured logging with correlation IDs (`logging_config.py`), CI (Ruff + pytest) |
+| **Safety boundaries** | Sandboxed execution with network isolation and CPU/memory caps; GITHUB_TOKEN redacted from all subprocess error paths |
+| **Operability** | SQLite checkpoints, structured JSON logging, configurable LLM timeout + retry (`LLM_TIMEOUT`, `LLM_NUM_RETRIES`), GitHub Actions CI (Ruff + Mypy + pytest --cov, Python 3.10–3.12 matrix, coverage ≥ 70%) |
 | **Honest iteration** | Patch representation evolved from fragile unified-diff apply to pinned-SHA search/replace after observing real apply failures |
 
 ## 📊 Demonstrated Outcomes
@@ -94,7 +94,7 @@ graph TD
 | **Patch** | LLM | Fetches file content at pinned SHA; generates `file_changes` (path + search + replace); on retry receives prior `stderr` from state |
 | **Validation** | Deterministic | Clones repo at pinned SHA, applies `file_changes` via Python string replace, runs pytest + Ruff + Mypy in Docker sandbox |
 | **PR / Dry-run** | Deterministic | Pushes branch and opens PR, or prints patch summary with no side effects |
-| **Human review** | Terminal | Explicit escalation state — reached when retries exhaust or planning flags high ambiguity |
+| **Human review** | Terminal | Escalation state; emits a Rich Panel/Table summary (issue context, validation results, proposed file changes, fix strategy) so reviewers know exactly what to action — reached when retries exhaust or planning flags high ambiguity |
 
 **Deliberate non-LLM boundaries:** issue ingestion, file fetching, symbol extraction, patch application, sandbox execution, git operations, and PR creation are all deterministic. LLMs are used only where semantic reasoning is required — research, planning, and patching.
 
@@ -221,7 +221,7 @@ Structured outputs keep contracts explicit; checkpoint serde stores plain dicts 
 Untrusted generated code runs with bounded CPU/memory and (by default) **no container network**, reducing exfiltration and surprise installs.
 
 **Why LiteLLM?**  
-One surface for multiple providers; per-stage overrides via **`RESEARCH_MODEL`**, **`PLANNING_MODEL`**, **`PATCH_MODEL`**, or **`LLM_MODEL`**.
+One surface for multiple providers; per-stage overrides via **`RESEARCH_MODEL`**, **`PLANNING_MODEL`**, **`PATCH_MODEL`**, or **`LLM_MODEL`**. Every LLM call is wrapped with a configurable timeout (`LLM_TIMEOUT`, default 120 s) and automatic retry count (`LLM_NUM_RETRIES`, default 2) to handle transient provider errors without manual intervention.
 
 **Where LLMs are deliberately not used**  
 Issue ingestion, repo reads, symbol extraction, **deterministic application of `file_changes`**, sandbox execution, git operations, and PR creation stay non-LLM to control cost, latency, and failure modes.
@@ -230,7 +230,7 @@ Issue ingestion, repo reads, symbol extraction, **deterministic application of `
 Research excerpts, fetched patch inputs, and the validation clone must all refer to the **same revision**. Without a pin, fast-moving default branches cause silent skew between what was read and what was executed.
 
 **Patch hygiene (`tools/patch_sanity.py`)**  
-Fast deterministic rules—empty search strings, no-op replacements, forbidden direct edits under `tests/` (tests belong in `tests_written`)—are encoded here and covered by unit tests so risky shapes are documented and regressions are caught in CI.
+Fast deterministic rules—empty search strings, no-op replacements, forbidden direct edits under `tests/` (tests belong in `tests_written`)—are encoded here and covered by unit tests so risky shapes are documented and regressions are caught in CI. Token redaction (`_redact_token` in `github_tools.py`) ensures the authenticated clone URL never appears in log output or raised exceptions.
 
 ## 📁 Repository Layout
 
@@ -243,6 +243,6 @@ Fast deterministic rules—empty search strings, no-op replacements, forbidden d
 | `tools/` | GitHub, Docker sandbox, templates, patch helpers |
 | `docker/` | Sandbox image |
 | `evaluation/` | Benchmark harness and datasets |
-| `tests/` | Pytest suite (routing, sandbox markers, patch rules, integration) |
+| `tests/` | Pytest suite — 76 tests covering routing, sandbox markers, patch sanity, prompt builders, PR template, apply logic, dry-run, human review, and integration |
 
 For end-to-end benchmark numbers and run logs, see **`RESULTS.md`**.

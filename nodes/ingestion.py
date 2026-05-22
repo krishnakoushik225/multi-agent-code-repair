@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 
-from github import Github
+from github import Auth, Github
 
 from graph.state import GraphState, IssueContext
 from logging_config import get_logger
@@ -22,7 +22,7 @@ def ingestion_node(state: GraphState) -> dict:
             "final_status": "failed",
         }
 
-    g = Github(token)
+    g = Github(auth=Auth.Token(token))
     url = state["issue_url"]
 
     match = re.match(r"https://github\.com/([^/]+)/([^/]+)/issues/(\d+)", url)
@@ -76,5 +76,4 @@ def ingestion_node(state: GraphState) -> dict:
     return {
         "issue_context": context,
         "retry_count": 0,
-        "max_retries": state.get("max_retries", 3),
     }

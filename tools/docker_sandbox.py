@@ -70,8 +70,8 @@ def apply_patch_and_run_tests(
         }
 
     try:
-        client = docker.from_env()
-    except docker.errors.DockerException as exc:
+        client = docker.from_env()  # type: ignore[attr-defined]
+    except docker.errors.DockerException as exc:  # type: ignore[attr-defined]
         return {
             "test_exit_code": 1,
             "lint_exit_code": 1,
@@ -156,7 +156,7 @@ def apply_patch_and_run_tests(
                 cpu_quota=50000,
                 network_mode=network_mode,
             )
-        except docker.errors.ImageNotFound:
+        except docker.errors.ImageNotFound:  # type: ignore[attr-defined]
             return {
                 "test_exit_code": 1,
                 "lint_exit_code": 1,
@@ -173,8 +173,9 @@ def apply_patch_and_run_tests(
                 "stderr": f"docker run failed: {exc}",
             }
 
+        validation_timeout = int(os.environ.get("SANDBOX_VALIDATION_TIMEOUT", "120"))
         try:
-            result = container.wait(timeout=120)
+            result = container.wait(timeout=validation_timeout)
             exit_code = int(result.get("StatusCode", 1))
         except Exception as exc:  # noqa: BLE001
             try:

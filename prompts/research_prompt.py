@@ -4,9 +4,7 @@ from graph.state import IssueContext
 
 
 def build_research_prompt(ctx: IssueContext, repo_tree: list[str]) -> str:
-    tree_preview = "\n".join(repo_tree[:400])
-    if len(repo_tree) > 400:
-        tree_preview += f"\n... ({len(repo_tree) - 400} more paths truncated)"
+    tree_preview = "\n".join(repo_tree)
 
     return f"""You are a senior engineer triaging a GitHub issue.
 
@@ -18,7 +16,7 @@ Body:
 
 Labels: {", ".join(ctx.labels) if ctx.labels else "(none)"}
 
-Repository file paths (sample):
+Repository file paths:
 {tree_preview}
 
 Return STRICT JSON with keys:

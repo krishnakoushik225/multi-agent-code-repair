@@ -10,6 +10,7 @@ from graph.state import (
 )
 from logging_config import get_logger
 from tools.docker_sandbox import apply_patch_and_run_tests
+from tools.patch_sanity import sanity_check_file_changes
 
 logger = get_logger(__name__)
 
@@ -29,6 +30,28 @@ def validation_node(state: GraphState) -> dict:
 
     retry_count = int(state.get("retry_count", 0))
     max_retries = int(state.get("max_retries", 3))
+
+    # Pre-Docker sanity check — fast rejection of clearly malformed patches.
+    # Errors are returned as stderr so the retry prompt can use them as feedback.
+    sanity_errors = sanity_check_file_changes(file_changes)
+    if sanity_errors:
+        routing = (
+            RoutingDecision.RETRY_PATCH
+            if retry_count < max_retries
+            else RoutingDecision.HUMAN_REVIEW
+        )
+        output = ValidationOutput(
+            test_exit_code=1,
+            tests_passed=False,
+            lint_passed=False,
+            type_check_passed=False,
+            stdout="",
+            stderr="\n".join(sanity_errors),
+            retry_count=retry_count,
+            routing_decision=routing,
+        )
+        logger.warning("Sanity check failed before Docker: %s", sanity_errors)
+        return {"validation_output": output}
 
     result = apply_patch_and_run_tests(
         repo_owner=ctx.repo_owner,

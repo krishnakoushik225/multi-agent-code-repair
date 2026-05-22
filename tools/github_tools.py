@@ -7,12 +7,12 @@ import re
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from github import Github
+from github import Auth, Github
 from github.GithubException import GithubException
 from github.Repository import Repository
 
@@ -45,7 +45,14 @@ def _client() -> Github:
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         raise RuntimeError("GITHUB_TOKEN is not set")
-    return Github(token)
+    return Github(auth=Auth.Token(token))
+
+
+def _redact_token(text: str, token: str) -> str:
+    """Replace the raw token value with *** to prevent credential leakage in logs and error messages."""
+    if not token or not text:
+        return text
+    return text.replace(token, "***")
 
 
 def _commit_for_ref(repo: Repository, git_ref: str | None) -> str:
@@ -91,13 +98,12 @@ def get_file_content(
     repo_name: str,
     file_path: str,
     *,
-    git_ref: str | None = None,
     ref: str | None = None,
 ) -> str | None:
     """Fetch a single file's text at a commit SHA or branch name (default: default branch)."""
     g = _client()
     repo = g.get_repo(f"{repo_owner}/{repo_name}")
-    resolved_ref = ref if ref else (git_ref if git_ref else repo.default_branch)
+    resolved_ref = ref if ref else repo.default_branch
 
     try:
         content_file = _repo_get_contents(repo, file_path, resolved_ref)
@@ -178,7 +184,9 @@ def _authenticated_clone_url(repo_owner: str, repo_name: str, token: str) -> str
     return f"https://x-access-token:{safe}@github.com/{repo_owner}/{repo_name}.git"
 
 
-def _run(cmd: list[str], cwd: Path, env: dict[str, str] | None = None, timeout: int = 120) -> subprocess.CompletedProcess[str]:
+def _run(
+    cmd: list[str], cwd: Path, env: dict[str, str] | None = None, timeout: int = 120
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         cmd,
         cwd=str(cwd),
@@ -188,19 +196,6 @@ def _run(cmd: list[str], cwd: Path, env: dict[str, str] | None = None, timeout: 
         env=env,
         timeout=timeout,
     )
-
-
-def apply_diff_to_branch(
-    repo: Repository,
-    branch_name: str,
-    file_path: str,
-    unified_diff: str,
-) -> None:
-    """
-    Compatibility shim: the PR workflow applies the full unified diff once via git.
-    Per-file application from the API alone is brittle; prefer `git_push_patch_branch`.
-    """
-    _ = (repo, branch_name, file_path, unified_diff)
 
 
 def git_push_patch_branch(
@@ -227,7 +222,7 @@ def git_push_patch_branch(
             timeout=clone_timeout,
         )
         if p.returncode != 0:
-            raise RuntimeError(f"git clone failed: {p.stderr}")
+            raise RuntimeError(f"git clone failed: {_redact_token(p.stderr, token)}")
 
         checkout_target = base_commit_sha or default_branch
         co = _run(
@@ -236,11 +231,13 @@ def git_push_patch_branch(
             timeout=60,
         )
         if co.returncode != 0:
-            raise RuntimeError(f"git checkout {checkout_target} failed: {co.stderr}")
+            raise RuntimeError(
+                f"git checkout {checkout_target} failed: {_redact_token(co.stderr, token)}"
+            )
 
         b = _run(["git", "-C", str(root), "checkout", "-b", branch_name], cwd=Path(tmp))
         if b.returncode != 0:
-            raise RuntimeError(f"git checkout -b failed: {b.stderr}")
+            raise RuntimeError(f"git checkout -b failed: {_redact_token(b.stderr, token)}")
 
         for change in file_changes:
             rel_path = change["path"]
@@ -276,11 +273,11 @@ def git_push_patch_branch(
             env=git_env,
         )
         if commit.returncode != 0:
-            raise RuntimeError(f"git commit failed: {commit.stderr}")
+            raise RuntimeError(f"git commit failed: {_redact_token(commit.stderr, token)}")
 
         push = _run(["git", "-C", str(root), "push", "origin", branch_name], cwd=Path(tmp))
         if push.returncode != 0:
-            raise RuntimeError(f"git push failed: {push.stderr}")
+            raise RuntimeError(f"git push failed: {_redact_token(push.stderr, token)}")
 
 
 def delete_git_ref_if_exists(repo: Repository, ref: str) -> None:
@@ -299,9 +296,3 @@ def slugify(s: str, max_len: int = 40) -> str:
     s = s.lower()
     s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
     return (s[:max_len] or "fix").rstrip("-")
-
-
-def iter_diff_paths(unified_diff: str) -> Iterable[str]:
-    for line in unified_diff.splitlines():
-        if line.startswith("+++ b/"):
-            yield line.removeprefix("+++ b/").split("\t", 1)[0].strip()

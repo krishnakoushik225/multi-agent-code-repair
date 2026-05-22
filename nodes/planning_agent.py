@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 def _safe_int(value: object, default: int = 0) -> int:
     try:
-        return int(value)  # type: ignore[arg-type]
+        return int(value)  # type: ignore[call-overload]
     except (TypeError, ValueError):
         return default
 
@@ -33,24 +33,34 @@ def planning_node(state: GraphState) -> dict:
     raw_research = state["research_output"]
     if raw_ctx is None or raw_research is None:
         logger.error("Missing issue_context or research_output")
-        return {"error_message": "Missing issue_context or research_output", "final_status": "failed"}
+        return {
+            "error_message": "Missing issue_context or research_output",
+            "final_status": "failed",
+        }
 
     ctx = as_model(IssueContext, raw_ctx)
     research = as_model(ResearchOutput, raw_research)
 
     prompt = build_planning_prompt(ctx, research)
     model = os.environ.get("PLANNING_MODEL", os.environ.get("LLM_MODEL", "gpt-4o"))
+    timeout = float(os.environ.get("LLM_TIMEOUT", "120"))
+    num_retries = int(os.environ.get("LLM_NUM_RETRIES", "2"))
     response = completion(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
+        timeout=timeout,
+        num_retries=num_retries,
     )
     content = response.choices[0].message.content or "{}"
     try:
         llm_output = json.loads(content)
     except json.JSONDecodeError:
         logger.error("LLM returned invalid JSON: %s", content[:200])
-        return {"error_message": f"LLM returned invalid JSON: {content[:200]}", "final_status": "failed"}
+        return {
+            "error_message": f"LLM returned invalid JSON: {content[:200]}",
+            "final_status": "failed",
+        }
 
     raw_risk = str(llm_output.get("risk_level", "medium")).lower()
     try:

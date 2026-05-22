@@ -63,29 +63,42 @@ def patch_node(state: GraphState) -> dict:
 
     prompt = build_patch_prompt(ctx, research, planning, pinned_file_contents, prior_error)
     model = os.environ.get("PATCH_MODEL", os.environ.get("LLM_MODEL", "gpt-4o"))
+    timeout = float(os.environ.get("LLM_TIMEOUT", "120"))
+    num_retries = int(os.environ.get("LLM_NUM_RETRIES", "2"))
     response = completion(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
+        timeout=timeout,
+        num_retries=num_retries,
     )
     content = response.choices[0].message.content or "{}"
     try:
         llm_output = json.loads(content)
     except json.JSONDecodeError:
         logger.error("LLM returned invalid JSON: %s", content[:200])
-        return {"error_message": f"LLM returned invalid JSON: {content[:200]}", "final_status": "failed"}
+        return {
+            "error_message": f"LLM returned invalid JSON: {content[:200]}",
+            "final_status": "failed",
+        }
 
     raw_changes = llm_output.get("file_changes", [])
     if not isinstance(raw_changes, list):
         logger.error("LLM returned invalid file_changes payload")
-        return {"error_message": "LLM returned invalid file_changes payload", "final_status": "failed"}
+        return {
+            "error_message": "LLM returned invalid file_changes payload",
+            "final_status": "failed",
+        }
     file_changes: list[FileChange] = []
     for item in raw_changes:
         try:
             file_changes.append(FileChange.model_validate(item))
         except Exception as exc:  # noqa: BLE001
             logger.error("Invalid file change from LLM: %s", exc)
-            return {"error_message": f"Invalid file change from LLM: {exc}", "final_status": "failed"}
+            return {
+                "error_message": f"Invalid file change from LLM: {exc}",
+                "final_status": "failed",
+            }
 
     output = PatchOutput(
         file_changes=file_changes,

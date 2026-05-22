@@ -73,8 +73,10 @@ def test_route_after_validation_routes_to_dry_run() -> None:
 
 
 def test_route_after_validation_retries_then_human() -> None:
+    # Routing must read state["retry_count"], not val.retry_count.
+    # Set them to different values so only the correct source produces "human_review".
     s = _base_state()
-    s["retry_count"] = 3
+    s["retry_count"] = 3  # source of truth
     s["validation_output"] = ValidationOutput(
         test_exit_code=1,
         tests_passed=False,
@@ -82,7 +84,25 @@ def test_route_after_validation_retries_then_human() -> None:
         type_check_passed=True,
         stdout="",
         stderr="boom",
-        retry_count=3,
+        retry_count=0,  # intentionally wrong — must NOT drive routing
         routing_decision=RoutingDecision.RETRY_PATCH,
     )
     assert route_after_validation(s) == "human_review"
+
+
+def test_route_after_validation_retries_when_budget_remains() -> None:
+    # Confirms routing returns "patch" while state["retry_count"] < max_retries,
+    # regardless of val.retry_count.
+    s = _base_state()
+    s["retry_count"] = 1
+    s["validation_output"] = ValidationOutput(
+        test_exit_code=1,
+        tests_passed=False,
+        lint_passed=True,
+        type_check_passed=True,
+        stdout="",
+        stderr="fail",
+        retry_count=99,  # intentionally wrong — must NOT drive routing
+        routing_decision=RoutingDecision.RETRY_PATCH,
+    )
+    assert route_after_validation(s) == "patch"

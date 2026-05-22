@@ -13,6 +13,9 @@ from tools.github_tools import get_file_content, get_repo_tree, search_code_in_r
 
 logger = get_logger(__name__)
 
+_MAX_CANDIDATE_FILES = 10
+_MAX_SEARCH_QUERY_CHARS = 256
+
 
 def research_node(state: GraphState) -> dict:
     """LLM agent. Uses GitHub Search API and tree-sitter to find relevant code."""
@@ -29,28 +32,35 @@ def research_node(state: GraphState) -> dict:
     prompt = build_research_prompt(ctx, repo_tree)
 
     model = os.environ.get("RESEARCH_MODEL", os.environ.get("LLM_MODEL", "gpt-4o"))
+    timeout = float(os.environ.get("LLM_TIMEOUT", "120"))
+    num_retries = int(os.environ.get("LLM_NUM_RETRIES", "2"))
     response = completion(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
+        timeout=timeout,
+        num_retries=num_retries,
     )
     content = response.choices[0].message.content or "{}"
     try:
         llm_output = json.loads(content)
     except json.JSONDecodeError:
         logger.error("LLM returned invalid JSON: %s", content[:200])
-        return {"error_message": f"LLM returned invalid JSON: {content[:200]}", "final_status": "failed"}
+        return {
+            "error_message": f"LLM returned invalid JSON: {content[:200]}",
+            "final_status": "failed",
+        }
 
     candidate_files = list(dict.fromkeys(llm_output.get("candidate_files", [])))
 
-    query = f"{ctx.title} {ctx.body}"[:256]
+    query = f"{ctx.title} {ctx.body}"[:_MAX_SEARCH_QUERY_CHARS]
     for p in search_code_in_repo(ctx.repo_owner, ctx.repo_name, query):
         if p not in candidate_files:
             candidate_files.append(p)
 
     file_contents: dict[str, str] = {}
-    for file_path in candidate_files[:10]:
-        content_text = get_file_content(ctx.repo_owner, ctx.repo_name, file_path, git_ref=git_ref)
+    for file_path in candidate_files[:_MAX_CANDIDATE_FILES]:
+        content_text = get_file_content(ctx.repo_owner, ctx.repo_name, file_path, ref=git_ref)
         if content_text:
             file_contents[file_path] = content_text
 

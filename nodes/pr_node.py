@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from github import Github
+from github import Auth, Github
 
 from graph.state import (
     GraphState,
@@ -45,7 +45,7 @@ def pr_node(state: GraphState) -> dict:
         logger.error("GITHUB_TOKEN is not set")
         return {"error_message": "GITHUB_TOKEN is not set", "final_status": "failed"}
 
-    g = Github(token)
+    g = Github(auth=Auth.Token(token))
     try:
         repo = g.get_repo(f"{ctx.repo_owner}/{ctx.repo_name}")
     except Exception as exc:  # noqa: BLE001
@@ -69,9 +69,10 @@ def pr_node(state: GraphState) -> dict:
         )
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to push branch: %s", exc)
+        # Patch is validated — escalate to human review so it is not silently lost.
         return {
             "error_message": f"Failed to push branch: {exc}",
-            "final_status": "failed",
+            "final_status": "human_review",
         }
 
     try:
@@ -83,9 +84,10 @@ def pr_node(state: GraphState) -> dict:
         )
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to create pull request: %s", exc)
+        # Branch was pushed — escalate to human review to open the PR manually.
         return {
             "error_message": f"Failed to create pull request: {exc}",
-            "final_status": "failed",
+            "final_status": "human_review",
         }
 
     output = PROutput(

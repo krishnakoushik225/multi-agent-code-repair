@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextvars
 import logging
 import sys
+import threading
 from typing import Any
 
 _correlation_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -43,21 +44,23 @@ class _NodeOutputFormatter(logging.Formatter):
 
 _FORMAT = "%(asctime)s [%(name)s] [%(thread_id)s] %(levelname)s: %(message)s"
 _logging_configured = False
+_logging_lock = threading.Lock()
 
 
 def get_logger(name: str) -> logging.Logger:
     """Return a stdlib logger; configures root handler once with correlation id + format."""
     global _logging_configured
     logger = logging.getLogger(name)
-    if not _logging_configured:
-        _logging_configured = True
-        root = logging.getLogger()
-        if not root.handlers:
-            handler = logging.StreamHandler(sys.stderr)
-            handler.setFormatter(_NodeOutputFormatter(_FORMAT))
-            handler.addFilter(_CorrelationIdFilter())
-            root.addHandler(handler)
-            root.setLevel(logging.INFO)
+    with _logging_lock:
+        if not _logging_configured:
+            _logging_configured = True
+            root = logging.getLogger()
+            if not root.handlers:
+                handler = logging.StreamHandler(sys.stderr)
+                handler.setFormatter(_NodeOutputFormatter(_FORMAT))
+                handler.addFilter(_CorrelationIdFilter())
+                root.addHandler(handler)
+                root.setLevel(logging.INFO)
     logger.setLevel(logging.INFO)
     logger.propagate = True
     return logger

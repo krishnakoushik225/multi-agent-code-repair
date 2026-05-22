@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, TypedDict, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 TModel = TypeVar("TModel", bound=BaseModel)
 
@@ -72,6 +72,13 @@ class FileChange(BaseModel):
     search: str = Field(description="Exact string to find in the file — must match verbatim")
     replace: str = Field(description="Exact string to replace it with")
     description: str = Field(description="One sentence explaining this change")
+
+    @field_validator("path")
+    @classmethod
+    def path_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("path must not be empty or whitespace")
+        return v
 
 
 class PatchOutput(BaseModel):

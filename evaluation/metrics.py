@@ -36,7 +36,9 @@ def summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "pr_success_rate": round(pr_success_rate * 100, 2),
         "test_pass_rate": round(test_pass_rate * 100, 2),
-        "human_edit_frequency": round(human_edit_frequency * 100, 2) if human_edit_frequency is not None else None,
+        "human_edit_frequency": round(human_edit_frequency * 100, 2)
+        if human_edit_frequency is not None
+        else None,
         "median_runtime_seconds": median(runtimes) if runtimes else None,
         "cost_per_patch_usd": median(costs) if costs else None,
         "n": len(runs),

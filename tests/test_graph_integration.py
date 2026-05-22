@@ -16,7 +16,9 @@ def test_route_after_validation_mapping_keys() -> None:
 
 
 @patch("nodes.patch_agent.completion")
-def test_patch_node_increments_retry_on_prior_validation_failure(mock_completion: MagicMock) -> None:
+def test_patch_node_increments_retry_on_prior_validation_failure(
+    mock_completion: MagicMock,
+) -> None:
     mock_completion.return_value = MagicMock()
     mock_completion.return_value.choices = [
         MagicMock(
@@ -30,7 +32,7 @@ def test_patch_node_increments_retry_on_prior_validation_failure(mock_completion
         "issue_url": "https://github.com/o/r/issues/1",
         "dry_run": False,
         "base_commit_sha_override": None,
-        "issue_context": {
+        "issue_context": {  # type: ignore[typeddict-item]
             "issue_number": 1,
             "title": "t",
             "body": "b",
@@ -41,14 +43,14 @@ def test_patch_node_increments_retry_on_prior_validation_failure(mock_completion
             "default_branch": "main",
             "base_commit_sha": "abc",
         },
-        "research_output": {
+        "research_output": {  # type: ignore[typeddict-item]
             "relevant_files": [],
             "file_contents": {},
             "related_symbols": [],
             "issue_summary": "s",
             "confidence_score": 0.5,
         },
-        "planning_output": {
+        "planning_output": {  # type: ignore[typeddict-item]
             "fix_strategy": "fix",
             "candidate_files": [],
             "estimated_lines_changed": 1,
@@ -57,7 +59,7 @@ def test_patch_node_increments_retry_on_prior_validation_failure(mock_completion
             "ambiguous": False,
         },
         "patch_output": None,
-        "validation_output": {
+        "validation_output": {  # type: ignore[typeddict-item]
             "test_exit_code": 1,
             "tests_passed": False,
             "lint_passed": True,
@@ -88,7 +90,7 @@ def test_minigraph_checkpoint_roundtrip() -> None:
     g.add_edge("n", END)
     cg = g.compile(checkpointer=MemorySaver())
     cfg = {"configurable": {"thread_id": "t1"}}
-    cg.invoke(
+    cg.invoke(  # type: ignore[call-overload]
         {
             "issue_url": "u",
             "dry_run": False,
@@ -106,5 +108,5 @@ def test_minigraph_checkpoint_roundtrip() -> None:
         },
         config=cfg,
     )
-    snap = cg.get_state(cfg)
+    snap = cg.get_state(cfg)  # type: ignore[arg-type]
     assert snap.values["retry_count"] == 1

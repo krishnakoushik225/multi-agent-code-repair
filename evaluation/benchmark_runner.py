@@ -45,12 +45,20 @@ def run_benchmark(benchmark_file: str) -> None:
         if pin_str:
             tid = f"{tid}_{pin_str[:16]}"
         config = {"configurable": {"thread_id": tid}}
-        graph.invoke(initial_state, config=config)
+        console.print(f"\n[bold cyan]Running:[/bold cyan] {issue_url}")
+        for event in graph.stream(initial_state, config=config):
+            for node_name in event:
+                console.print(f"  [dim]✓ {node_name}[/dim]")
         snap = graph.get_state(config)
         final_state = snap.values
 
         pr = final_state.get("pr_output")
-        pr_opened = bool(pr and getattr(pr, "success", False) and pr.pr_url and not str(pr.pr_url).startswith("dry-run:"))
+        pr_opened = bool(
+            pr
+            and getattr(pr, "success", False)
+            and pr.pr_url
+            and not str(pr.pr_url).startswith("dry-run:")
+        )
         val = final_state.get("validation_output")
         tests_passed = bool(val and getattr(val, "tests_passed", False))
 

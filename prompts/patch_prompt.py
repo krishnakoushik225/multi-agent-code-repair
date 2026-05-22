@@ -4,6 +4,10 @@ from typing import Any
 
 from graph.state import IssueContext, PlanningOutput, ResearchOutput
 
+_MAX_SYMBOLS = 20
+_MAX_FILE_CHARS = 6_000
+_MAX_PRIOR_STDERR_CHARS = 1_000
+
 
 def build_patch_prompt(
     ctx: IssueContext,
@@ -12,17 +16,25 @@ def build_patch_prompt(
     pinned_file_contents: dict[str, str],
     prior_error: dict[str, Any] | None = None,
 ) -> str:
-    _ = research
+    related_symbols = (
+        ", ".join(research.related_symbols[:_MAX_SYMBOLS])
+        if research.related_symbols
+        else "none identified"
+    )
     files_block = ""
     for path, content in (pinned_file_contents or {}).items():
-        truncated = content[:6000] + "\n... (truncated)" if len(content) > 6000 else content
+        truncated = (
+            content[:_MAX_FILE_CHARS] + "\n... (truncated)"
+            if len(content) > _MAX_FILE_CHARS
+            else content
+        )
         files_block += f"\n=== {path} ===\n{truncated}\n"
 
     retry_block = ""
     if prior_error:
         retry_block = f"""
 PREVIOUS ATTEMPT FAILED — Apply errors:
-{prior_error.get('stderr', '')[:1000]}
+{prior_error.get("stderr", "")[:_MAX_PRIOR_STDERR_CHARS]}
 
 The search string was not found verbatim. Check your search string character by character against the file content shown above. Copy the search string directly from the file — do not paraphrase or reformat it.
 """
@@ -32,8 +44,11 @@ The search string was not found verbatim. Check your search string character by 
 ISSUE #{ctx.issue_number}: {ctx.title}
 {ctx.body[:1000]}
 
+ISSUE ANALYSIS: {research.issue_summary}
+RELATED SYMBOLS: {related_symbols}
+
 FIX STRATEGY: {planning.fix_strategy}
-FILES TO MODIFY: {', '.join(planning.candidate_files)}
+FILES TO MODIFY: {", ".join(planning.candidate_files)}
 
 EXACT FILE CONTENTS (copy search strings verbatim from these):
 {files_block}

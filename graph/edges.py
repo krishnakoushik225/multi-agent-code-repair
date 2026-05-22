@@ -28,7 +28,7 @@ def route_after_validation(state: GraphState) -> str:
             return "dry_run"
         return "pr"
 
-    if val.retry_count >= state["max_retries"]:
+    if state["retry_count"] >= state["max_retries"]:
         return "human_review"
 
     return "patch"

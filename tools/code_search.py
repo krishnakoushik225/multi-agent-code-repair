@@ -43,7 +43,9 @@ def _walk_extract_names(node, source_bytes: bytes) -> list[str]:
 def _regex_extract_symbols(source: str) -> list[str]:
     """Fallback when tree-sitter fails or returns nothing: module-level-ish def/class names."""
     names: list[str] = []
-    for m in re.finditer(r"^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", source, re.MULTILINE):
+    for m in re.finditer(
+        r"^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", source, re.MULTILINE
+    ):
         names.append(m.group(1))
     for m in re.finditer(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)\b", source, re.MULTILINE):
         names.append(m.group(1))
@@ -67,7 +69,9 @@ def _symbols_for_file(path: str, source: str) -> list[str]:
     return names
 
 
-def find_related_symbols(file_contents: dict[str, str], query_text: str, top_k: int = 25) -> list[str]:
+def find_related_symbols(
+    file_contents: dict[str, str], query_text: str, top_k: int = 25
+) -> list[str]:
     """
     Deterministic symbol extraction: tree-sitter walk over Python AST, with regex
     extraction as fallback. Results are ranked by overlap with query tokens.
